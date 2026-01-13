@@ -1,0 +1,2445 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Les Forges du Progrès — Multijoueur</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Crimson+Text:ital@0;1&display=swap" rel="stylesheet">
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<style>
+:root{--sepia:#f4e4c1;--ink:#2c1810;--rust:#8b4513;--gold:#d4a756;--smoke:#5a5a5a;--coal:#1a1a1a;--success:#2d5a27;--warning:#b8860b;--danger:#a52a2a;--paper:#faf6eb;--blue:#1e3a5f;
+--textile:#6b5b95;--metal:#4a4a4a;--mine:#8b6914;--meca:#2980b9;--chimie:#27ae60}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Crimson Text',Georgia,serif;background:var(--coal);color:var(--ink);min-height:100vh;font-size:16px}
+.screen{display:none;min-height:100vh}
+.screen.active{display:flex;flex-direction:column}
+.btn{font-family:'Playfair Display',serif;padding:0.7rem 1.2rem;border:3px solid var(--ink);background:var(--paper);cursor:pointer;font-size:1rem;transition:all 0.2s}
+.btn:hover:not(:disabled){background:var(--ink);color:var(--sepia)}
+.btn:disabled{opacity:0.4;cursor:not-allowed}
+.btn-primary{background:var(--rust);color:var(--sepia);border-color:var(--rust)}
+.btn-success{background:var(--success);color:white;border-color:var(--success)}
+.btn-small{padding:0.4rem 0.8rem;font-size:0.85rem}
+.btn-large{padding:1rem 2rem;font-size:1.2rem}
+
+/* === ÉCRAN CONNEXION === */
+#connect-screen{background:linear-gradient(rgba(0,0,0,0.7),rgba(0,0,0,0.8));align-items:center;justify-content:center;padding:1rem}
+.connect-box{background:var(--sepia);border:6px double var(--ink);max-width:500px;width:100%;padding:2rem}
+.connect-box h1{font-family:'Playfair Display',serif;font-size:2rem;text-align:center;margin-bottom:0.5rem}
+.connect-box .subtitle{text-align:center;color:var(--rust);font-style:italic;margin-bottom:1.5rem}
+.form-group{margin-bottom:1rem}
+.form-group label{display:block;font-weight:600;margin-bottom:0.3rem}
+.form-group input{width:100%;padding:0.8rem;font-size:1rem;border:2px solid var(--ink);font-family:inherit}
+.form-group input:focus{outline:none;border-color:var(--rust)}
+.connect-buttons{display:flex;gap:1rem;margin-top:1.5rem}
+.connect-buttons .btn{flex:1}
+.separator{text-align:center;margin:1.5rem 0;position:relative}
+.separator::before{content:'';position:absolute;left:0;top:50%;width:100%;height:2px;background:var(--ink)}
+.separator span{background:var(--sepia);padding:0 1rem;position:relative;color:var(--smoke)}
+.error-msg{background:#ffebee;color:var(--danger);padding:0.8rem;margin-top:1rem;border-left:4px solid var(--danger);display:none}
+.error-msg.show{display:block}
+
+/* === ÉCRAN LOBBY === */
+#lobby-screen{background:var(--sepia)}
+.lobby-header{background:var(--ink);color:var(--sepia);padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem}
+.lobby-header h1{font-family:'Playfair Display',serif}
+.game-code{background:var(--gold);color:var(--ink);padding:0.5rem 1.5rem;font-family:'Playfair Display',serif;font-size:1.3rem;letter-spacing:0.2rem}
+.lobby-content{flex:1;padding:1.5rem;max-width:1200px;margin:0 auto;width:100%}
+.lobby-grid{display:grid;grid-template-columns:1fr 350px;gap:1.5rem}
+@media(max-width:900px){.lobby-grid{grid-template-columns:1fr}}
+
+.panel{background:var(--paper);border:3px solid var(--ink);padding:1rem}
+.panel h2{font-family:'Playfair Display',serif;font-size:1.1rem;margin-bottom:1rem;padding-bottom:0.5rem;border-bottom:2px solid var(--ink)}
+
+.players-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.6rem}
+.player-card{background:var(--sepia);border:2px solid var(--ink);padding:0.6rem;display:flex;align-items:center;gap:0.6rem}
+.player-card.ready{border-color:var(--success);background:#e8f5e9}
+.player-card.host{border-color:var(--gold)}
+.player-card.self{box-shadow:0 0 0 3px var(--rust)}
+.player-card.eliminated{opacity:0.5;background:#ffebee}
+.player-icon{font-size:1.3rem}
+.player-info{flex:1;min-width:0}
+.player-name{font-weight:700;font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player-meta{font-size:0.75rem;color:var(--smoke)}
+.player-badge{font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:2px;color:white}
+.player-badge.host{background:var(--gold);color:var(--ink)}
+.player-badge.ready{background:var(--success)}
+.player-badge.waiting{background:var(--warning)}
+
+.sector-choice{margin-top:1rem}
+.sector-options{display:flex;flex-direction:column;gap:0.5rem}
+.sector-option{display:flex;align-items:center;gap:0.8rem;padding:0.8rem;background:var(--sepia);border:2px solid var(--ink);cursor:pointer;transition:all 0.2s}
+.sector-option:hover{border-color:var(--rust)}
+.sector-option.selected{border-color:var(--gold);background:#fff8e1;border-width:3px}
+.sector-option .sector-icon{font-size:1.5rem;width:40px;text-align:center}
+.sector-option .sector-info{flex:1}
+.sector-option .sector-name{font-weight:700}
+.sector-option .sector-desc{font-size:0.8rem;color:var(--smoke)}
+.sector-option .sector-players{font-size:0.75rem;color:var(--rust)}
+
+.lobby-actions{margin-top:1.5rem;display:flex;gap:1rem;flex-wrap:wrap}
+.waiting-info{background:var(--paper);padding:1.5rem;text-align:center;margin-top:1rem}
+.waiting-info h3{margin-bottom:0.5rem}
+.waiting-count{font-size:2.5rem;font-family:'Playfair Display',serif;color:var(--rust)}
+
+/* === ÉCRAN JEU === */
+#game-screen{background:var(--sepia)}
+.game-header{background:var(--ink);color:var(--sepia);padding:0.5rem 1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem}
+.game-title{font-family:'Playfair Display',serif;font-size:1rem}
+.header-info{display:flex;gap:1.5rem;align-items:center}
+.header-stat{text-align:center}
+.header-stat-value{font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--gold)}
+.header-stat-label{font-size:0.7rem;opacity:0.8}
+.turn-indicator{padding:0.4rem 1rem;border-radius:3px;font-size:0.85rem}
+.turn-indicator.waiting{background:var(--warning)}
+.turn-indicator.ready{background:var(--success)}
+.turn-indicator.processing{background:var(--blue);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+
+.game-main{display:grid;grid-template-columns:280px 1fr 260px;gap:0.8rem;padding:0.8rem;flex:1}
+@media(max-width:1100px){.game-main{grid-template-columns:1fr;max-height:none}}
+
+/* Panneau Marché */
+.market-panel h2{display:flex;justify-content:space-between;align-items:center}
+.market-panel h2 .help-btn{font-size:0.7rem;background:var(--blue);color:white;border:none;padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer}
+.sector-market{margin-bottom:0.8rem;padding:0.6rem;background:var(--sepia);border-left:4px solid var(--ink)}
+.sector-market.current{background:#fff8e1;border-left-color:var(--gold)}
+.sector-market.target{background:#e8f5e9;border-left-color:var(--success)}
+.sector-market-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem}
+.sector-market-name{font-weight:700;display:flex;align-items:center;gap:0.4rem}
+.sector-market-price{font-family:'Playfair Display',serif;font-weight:700}
+.sector-market-bar{height:16px;background:#ddd;position:relative;margin-bottom:0.3rem;border:1px solid var(--ink)}
+.bar-demand{position:absolute;height:100%;background:var(--blue);opacity:0.6}
+.bar-supply{position:absolute;height:100%;background:var(--rust);opacity:0.8}
+.sector-market-stats{display:flex;justify-content:space-between;font-size:0.75rem;color:var(--smoke)}
+.oversupply{color:var(--danger);font-weight:700}
+.undersupply{color:var(--success);font-weight:700}
+
+/* Panneau Décisions */
+.decisions-panel{overflow-y:auto}
+.your-factory{background:var(--sepia);padding:0.8rem;margin-bottom:1rem;border:2px solid var(--ink)}
+.factory-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;text-align:center}
+.factory-stat{padding:0.5rem}
+.factory-stat-value{font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:700;color:var(--rust)}
+.factory-stat-label{font-size:0.7rem;color:var(--smoke)}
+.factory-stat-value.negative{color:var(--danger)}
+
+.tension-bar{margin-top:0.8rem}
+.tension-bar-label{font-size:0.8rem;margin-bottom:0.3rem;display:flex;justify-content:space-between}
+.tension-track{height:12px;background:linear-gradient(90deg,var(--success),var(--warning),var(--danger));border:1px solid var(--ink);position:relative}
+.tension-marker{position:absolute;top:-3px;width:6px;height:18px;background:var(--ink);border:1px solid var(--gold)}
+
+.decision-group{margin-bottom:1rem;padding-bottom:0.8rem;border-bottom:1px dashed var(--smoke)}
+.decision-group:last-child{border-bottom:none}
+.decision-group h3{font-size:0.9rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center}
+.decision-row{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem}
+.decision-label{flex:1;font-size:0.85rem}
+.decision-controls{display:flex;align-items:center;gap:0.3rem}
+.ctrl-btn{width:28px;height:28px;border:2px solid var(--ink);background:var(--paper);cursor:pointer;font-family:'Playfair Display',serif;font-size:1rem}
+.ctrl-btn:hover:not(:disabled){background:var(--ink);color:var(--sepia)}
+.ctrl-btn:disabled{opacity:0.3}
+.ctrl-value{min-width:50px;text-align:center;font-family:'Playfair Display',serif;font-weight:700;font-size:1.1rem}
+
+.slider-row{margin-top:0.5rem}
+.slider-header{display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.2rem}
+.slider-value{font-weight:700;color:var(--rust)}
+input[type="range"]{width:100%;height:8px;-webkit-appearance:none;border-radius:4px;cursor:pointer}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;background:var(--ink);border-radius:50%}
+.slider-salary{background:linear-gradient(90deg,var(--danger),var(--warning),var(--success))}
+.slider-maint{background:linear-gradient(90deg,var(--danger),var(--success))}
+
+.change-sector-btn{width:100%;margin-top:0.5rem;background:var(--warning);border-color:var(--warning);color:white;font-size:0.85rem;padding:0.5rem}
+
+.finance-preview{background:var(--paper);padding:0.8rem;margin-top:1rem;border:2px solid var(--ink)}
+.finance-preview h4{font-size:0.9rem;margin-bottom:0.5rem;font-family:'Playfair Display',serif}
+.finance-row{display:flex;justify-content:space-between;font-size:0.85rem;padding:0.2rem 0}
+.finance-row.total{font-weight:700;border-top:2px solid var(--ink);margin-top:0.3rem;padding-top:0.4rem}
+.finance-row .positive{color:var(--success)}
+.finance-row .negative{color:var(--danger)}
+
+.submit-btn{width:100%;margin-top:1rem;padding:1rem}
+
+/* Panneau Classement */
+.ranking-panel .ranking-list{max-height:400px;overflow-y:auto}
+.ranking-item{display:flex;align-items:center;gap:0.5rem;padding:0.5rem;border-bottom:1px solid #ddd;font-size:0.85rem}
+.ranking-item.self{background:#fff8e1}
+.ranking-item.eliminated{opacity:0.4;text-decoration:line-through}
+.ranking-pos{width:22px;height:22px;background:var(--ink);color:var(--sepia);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700}
+.ranking-item:nth-child(1) .ranking-pos{background:gold;color:var(--ink)}
+.ranking-item:nth-child(2) .ranking-pos{background:silver;color:var(--ink)}
+.ranking-item:nth-child(3) .ranking-pos{background:#cd7f32;color:white}
+.ranking-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ranking-sector{font-size:0.7rem;color:var(--smoke)}
+.ranking-capital{font-weight:700;font-family:'Playfair Display',serif}
+.ranking-capital.negative{color:var(--danger)}
+.ranking-status{font-size:0.65rem;padding:0.1rem 0.3rem;border-radius:2px}
+.ranking-status.ready{background:var(--success);color:white}
+.ranking-status.waiting{background:var(--warning);color:white}
+
+/* Événement */
+.event-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1000;align-items:center;justify-content:center;padding:1rem}
+.event-overlay.active{display:flex}
+.event-card{background:var(--sepia);border:5px double var(--ink);max-width:550px;width:100%;max-height:90vh;overflow-y:auto}
+.event-header{background:var(--rust);color:var(--sepia);padding:1rem;text-align:center}
+.event-header .event-type{background:rgba(0,0,0,0.3);padding:0.2rem 0.8rem;font-size:0.8rem;display:inline-block;margin-bottom:0.3rem}
+.event-header h3{font-family:'Playfair Display',serif;font-size:1.2rem}
+.event-body{padding:1.5rem}
+.event-desc{font-style:italic;text-align:center;margin-bottom:1rem;font-size:1.05rem}
+.event-effects{background:var(--paper);padding:1rem;margin-bottom:1rem}
+.event-effects h4{font-size:0.9rem;margin-bottom:0.5rem}
+.event-effect-item{display:flex;justify-content:space-between;font-size:0.9rem;padding:0.2rem 0}
+.event-learn{background:var(--paper);padding:1rem;border-left:4px solid var(--blue);font-size:0.9rem}
+.event-learn strong{color:var(--rust)}
+.event-close{width:100%;margin-top:1rem}
+
+/* Fin de partie */
+#end-screen{background:var(--coal);align-items:center;justify-content:center;padding:1rem}
+.end-card{background:var(--sepia);border:6px double var(--ink);max-width:800px;width:100%;max-height:95vh;overflow-y:auto}
+.end-header{background:var(--ink);color:var(--sepia);padding:1.5rem;text-align:center}
+.end-header h1{font-family:'Playfair Display',serif;font-size:1.8rem}
+.end-rank{font-size:3rem;margin:0.5rem 0}
+.end-badge{display:inline-block;padding:0.5rem 1.5rem;font-family:'Playfair Display',serif}
+.end-badge.victory{background:var(--gold);color:var(--ink)}
+.end-badge.defeat{background:var(--danger);color:white}
+.end-body{padding:1.5rem}
+.final-ranking{margin-bottom:1.5rem}
+.final-ranking h3{margin-bottom:0.8rem}
+.final-ranking-list{max-height:300px;overflow-y:auto}
+.final-ranking-item{display:flex;align-items:center;gap:0.8rem;padding:0.6rem;background:var(--paper);margin-bottom:0.3rem;border-left:4px solid var(--ink)}
+.final-ranking-item.self{background:#fff8e1;border-left-color:var(--gold)}
+.final-ranking-item.eliminated{opacity:0.5}
+.final-pos{width:30px;height:30px;background:var(--ink);color:var(--sepia);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700}
+.final-ranking-item:nth-child(1) .final-pos{background:gold;color:var(--ink);font-size:1.2rem}
+.final-ranking-item:nth-child(2) .final-pos{background:silver;color:var(--ink)}
+.final-ranking-item:nth-child(3) .final-pos{background:#cd7f32;color:white}
+.final-name{flex:1;font-weight:700}
+.final-capital{font-family:'Playfair Display',serif;font-size:1.1rem}
+.concepts-section{margin-top:1.5rem}
+.concepts-section h3{margin-bottom:0.5rem}
+.concept-tags{display:flex;flex-wrap:wrap;gap:0.3rem}
+.concept-tag{padding:0.3rem 0.6rem;background:var(--ink);color:var(--sepia);font-size:0.8rem}
+.end-buttons{margin-top:1.5rem;display:flex;gap:1rem;justify-content:center}
+
+/* Popup changement secteur */
+.sector-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:1000;align-items:center;justify-content:center;padding:1rem}
+.sector-modal.active{display:flex}
+.sector-modal-content{background:var(--sepia);border:4px solid var(--ink);max-width:450px;width:100%;padding:1.5rem}
+.sector-modal h3{font-family:'Playfair Display',serif;margin-bottom:1rem;text-align:center}
+.sector-modal-warning{background:#fff3cd;padding:0.8rem;margin-bottom:1rem;border-left:4px solid var(--warning);font-size:0.9rem}
+.sector-modal-options{display:flex;flex-direction:column;gap:0.5rem}
+.sector-modal-option{display:flex;align-items:center;gap:0.8rem;padding:0.8rem;background:var(--paper);border:2px solid var(--ink);cursor:pointer}
+.sector-modal-option:hover{border-color:var(--rust)}
+.sector-modal-option.disabled{opacity:0.4;cursor:not-allowed}
+.sector-modal-buttons{display:flex;gap:1rem;margin-top:1rem}
+.sector-modal-buttons .btn{flex:1}
+
+/* Notifications toast */
+.notification-container{position:fixed;top:1rem;right:1rem;z-index:2000;display:flex;flex-direction:column;gap:0.5rem;max-width:350px}
+.notification{background:var(--paper);border:3px solid var(--ink);padding:1rem;box-shadow:0 4px 12px rgba(0,0,0,0.3);animation:slideIn 0.3s ease}
+.notification.bankruptcy{border-color:var(--danger);background:#ffebee}
+.notification.good{border-color:var(--success);background:#e8f5e9}
+.notification.bad{border-color:var(--warning);background:#fff8e1}
+.notification-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem}
+.notification-title{font-family:'Playfair Display',serif;font-weight:700;font-size:0.95rem}
+.notification-close{background:none;border:none;font-size:1.2rem;cursor:pointer;opacity:0.6}
+.notification-close:hover{opacity:1}
+.notification-body{font-size:0.9rem}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes slideOut{from{transform:translateX(0);opacity:1}to{transform:translateX(100%);opacity:0}}
+.notification.hiding{animation:slideOut 0.3s ease forwards}
+
+/* Event individuel - couleurs selon type */
+.individual-event-good .event-header{background:var(--success)}
+.individual-event-bad .event-header{background:var(--danger)}
+
+/* Bouton lexique header */
+.lexicon-btn{background:var(--gold);color:var(--ink);border:2px solid var(--ink);padding:0.4rem 0.8rem;font-family:'Playfair Display',serif;font-weight:700;cursor:pointer;margin-left:1rem}
+.lexicon-btn:hover{background:var(--rust);color:var(--paper)}
+
+/* Bouton aide ? */
+.help-btn{background:var(--smoke);color:var(--ink);border:2px solid var(--ink);width:24px;height:24px;border-radius:50%;font-weight:700;cursor:pointer;margin-left:0.5rem;font-size:0.8rem;padding:0}
+.help-btn:hover{background:var(--gold)}
+
+/* Bouton graphique dans secteur */
+.chart-btn{background:none;border:none;cursor:pointer;font-size:1rem;opacity:0.6;padding:0.2rem}
+.chart-btn:hover{opacity:1}
+
+/* Modal générique */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1500;display:none;justify-content:center;align-items:center;padding:1rem}
+.modal-overlay.active{display:flex}
+.modal-content{background:var(--paper);border:4px solid var(--ink);max-width:500px;width:100%;max-height:85vh;display:flex;flex-direction:column}
+.modal-content.modal-large{max-width:700px}
+.modal-header{background:var(--ink);color:var(--paper);padding:1rem;display:flex;justify-content:space-between;align-items:center}
+.modal-header h2{margin:0;font-size:1.2rem}
+.modal-close{background:none;border:none;color:var(--paper);font-size:1.8rem;cursor:pointer;line-height:1}
+.modal-close:hover{color:var(--gold)}
+.modal-body{padding:1rem;overflow-y:auto}
+
+/* Lexique */
+.lexicon-body{display:grid;gap:1rem}
+.lexicon-entry{background:var(--cream);border:2px solid var(--smoke);padding:0.8rem}
+.lexicon-entry h4{margin:0 0 0.3rem 0;color:var(--rust);font-size:1rem}
+.lexicon-entry p{margin:0;font-size:0.9rem;line-height:1.4}
+
+/* Graphique */
+.chart-container{background:#fff;padding:1rem;border:2px solid var(--smoke)}
+.chart-legend{display:flex;justify-content:center;gap:1.5rem;margin-top:1rem}
+.legend-item{display:flex;align-items:center;gap:0.4rem;font-size:0.85rem}
+.legend-color{width:16px;height:16px;border:1px solid var(--ink)}
+</style>
+</head>
+<body>
+
+<!-- ÉCRAN CONNEXION -->
+<div id="connect-screen" class="screen active">
+<div class="connect-box">
+<h1>⚙ Les Forges du Progrès</h1>
+<p class="subtitle">Simulation multijoueur du capitalisme industriel</p>
+
+<div class="form-group">
+<label>Votre nom d'industriel</label>
+<input type="text" id="player-name" placeholder="Baron Dupont" maxlength="20">
+</div>
+
+<div class="separator"><span>Rejoindre une partie</span></div>
+
+<div class="form-group">
+<label>Code de la partie</label>
+<input type="text" id="game-code" placeholder="FORGE-XXXX" maxlength="12" style="text-transform:uppercase">
+</div>
+<button class="btn btn-primary" onclick="joinGame()" style="width:100%">Rejoindre</button>
+
+<div class="separator"><span>Ou créer une nouvelle partie</span></div>
+
+<button class="btn btn-success" onclick="createGame()" style="width:100%">🎓 Créer une partie (Enseignant)</button>
+
+<div class="error-msg" id="error-msg"></div>
+</div>
+</div>
+
+<!-- ÉCRAN LOBBY -->
+<div id="lobby-screen" class="screen">
+<header class="lobby-header">
+<h1>⚙ Les Forges du Progrès</h1>
+<div class="game-code" id="display-code">FORGE-XXXX</div>
+<div>
+<span id="player-count">0</span> joueurs connectés
+</div>
+</header>
+
+<div class="lobby-content">
+<div class="lobby-grid">
+<div class="panel">
+<h2>👥 Joueurs (<span id="ready-count">0</span>/<span id="total-count">0</span> prêts)</h2>
+<div class="players-grid" id="players-list"></div>
+</div>
+
+<div>
+<div class="panel">
+<h2>🏭 Choisissez votre secteur</h2>
+<div class="sector-options" id="sector-options"></div>
+</div>
+
+<div class="panel" style="margin-top:1rem">
+<h2>📋 Paramètres</h2>
+<div id="game-params">
+<p><strong>Tours :</strong> <span id="param-turns">20</span></p>
+<p><strong>Capital départ :</strong> <span id="param-capital">30 000₣</span></p>
+<p><strong>Joueurs min/max :</strong> <span id="param-players">2-30</span></p>
+</div>
+</div>
+
+<div class="lobby-actions">
+<button class="btn btn-success btn-large" id="ready-btn" onclick="toggleReady()">✓ Je suis prêt</button>
+<button class="btn btn-primary btn-large" id="start-btn" onclick="forceStartGame()">🚀 Lancer la partie</button>
+</div>
+
+<div class="waiting-info" id="waiting-info">
+<h3>En attente des joueurs...</h3>
+<div class="waiting-count"><span id="waiting-count">0</span> / <span id="waiting-total">0</span> prêts</div>
+<p style="margin-top:0.5rem;font-size:0.9rem;color:var(--smoke)" id="host-tip"></p>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- ÉCRAN JEU -->
+<div id="game-screen" class="screen">
+<header class="game-header">
+<div class="game-title">⚙ Les Forges du Progrès</div>
+<div class="header-info">
+<div class="header-stat">
+<div class="header-stat-value" id="h-year">1840</div>
+<div class="header-stat-label">Année</div>
+</div>
+<div class="header-stat">
+<div class="header-stat-value" id="h-turn">1/20</div>
+<div class="header-stat-label">Tour</div>
+</div>
+<div class="header-stat">
+<div class="header-stat-value" id="h-alive">25</div>
+<div class="header-stat-label">En jeu</div>
+</div>
+<div class="header-stat">
+<div class="header-stat-value" id="h-rank">#1</div>
+<div class="header-stat-label">Rang</div>
+</div>
+<button class="lexicon-btn" onclick="openLexicon()">📖 Lexique</button>
+</div>
+<div class="turn-indicator waiting" id="turn-indicator">⏳ En attente...</div>
+</header>
+
+<div class="game-main">
+<!-- PANNEAU MARCHÉ -->
+<aside class="panel market-panel">
+<h2>📈 Marchés <button class="help-btn" onclick="showHelp('marche')">?</button></h2>
+<div id="markets-display"></div>
+<div style="margin-top:1rem;padding:0.8rem;background:var(--paper);border:2px solid var(--ink)">
+<h3 style="font-size:0.85rem;margin-bottom:0.5rem">📊 Tendance globale</h3>
+<div id="global-trend" style="text-align:center;font-size:1.1rem"></div>
+</div>
+</aside>
+
+<!-- PANNEAU DÉCISIONS -->
+<main class="panel decisions-panel">
+<h2>📋 Vos décisions — <span id="d-year">1840</span></h2>
+
+<div class="your-factory">
+<div class="factory-stats">
+<div class="factory-stat">
+<div class="factory-stat-value" id="f-capital">30 000₣</div>
+<div class="factory-stat-label">Capital</div>
+</div>
+<div class="factory-stat">
+<div class="factory-stat-value" id="f-workers">20</div>
+<div class="factory-stat-label">Ouvriers</div>
+</div>
+<div class="factory-stat">
+<div class="factory-stat-value" id="f-machines">2</div>
+<div class="factory-stat-label">Machines</div>
+</div>
+</div>
+<div class="factory-stats" style="margin-top:0.5rem">
+<div class="factory-stat">
+<div class="factory-stat-value" id="f-production">80</div>
+<div class="factory-stat-label">Production</div>
+</div>
+<div class="factory-stat">
+<div class="factory-stat-value" id="f-debt">0₣</div>
+<div class="factory-stat-label">Dette</div>
+</div>
+<div class="factory-stat">
+<div class="factory-stat-value" id="f-sector">🧵</div>
+<div class="factory-stat-label" id="f-sector-name">Textile</div>
+</div>
+</div>
+<div class="tension-bar">
+<div class="tension-bar-label"><span>🔥 Tension</span><span id="tension-value">15%</span></div>
+<div class="tension-track"><div class="tension-marker" id="tension-marker"></div></div>
+</div>
+</div>
+
+<div class="decision-group">
+<h3>👷 Main-d'œuvre</h3>
+<div class="decision-row">
+<span class="decision-label">Ouvriers (30₣/emb.)</span>
+<div class="decision-controls">
+<button class="ctrl-btn" onclick="adjustWorkers(-5)">−5</button>
+<button class="ctrl-btn" onclick="adjustWorkers(-1)">−</button>
+<span class="ctrl-value" id="d-workers">20</span>
+<button class="ctrl-btn" onclick="adjustWorkers(1)">+</button>
+<button class="ctrl-btn" onclick="adjustWorkers(5)">+5</button>
+</div>
+</div>
+</div>
+
+<div class="decision-group">
+<h3>⚙️ Machines</h3>
+<div class="decision-row">
+<span class="decision-label">Machines (2500₣/achat)</span>
+<div class="decision-controls">
+<button class="ctrl-btn" onclick="adjustMachines(-1)">−</button>
+<span class="ctrl-value" id="d-machines">2</span>
+<button class="ctrl-btn" onclick="adjustMachines(1)">+</button>
+</div>
+</div>
+</div>
+
+<div class="decision-group">
+<h3>💵 Salaires & Entretien</h3>
+<div class="slider-row">
+<div class="slider-header"><span>Salaire journalier</span><span class="slider-value" id="d-salary">2.50₣</span></div>
+<input type="range" class="slider-salary" min="1" max="5" step="0.25" value="2.5" oninput="updateSalary(this.value)">
+</div>
+<div class="slider-row">
+<div class="slider-header"><span>Entretien</span><span class="slider-value" id="d-maint">Normal</span></div>
+<input type="range" class="slider-maint" min="0" max="3" step="1" value="2" oninput="updateMaint(this.value)">
+</div>
+</div>
+
+<div class="decision-group">
+<h3>🏦 Financement</h3>
+<div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+<button class="btn btn-small" onclick="takeLoan(5000)">Emprunter 5000₣</button>
+<button class="btn btn-small" onclick="takeLoan(10000)">Emprunter 10000₣</button>
+<button class="btn btn-small" onclick="repayLoan()" id="repay-btn" style="display:none">Rembourser</button>
+</div>
+</div>
+
+<div class="decision-group">
+<h3>🏭 Secteur</h3>
+<button class="btn change-sector-btn" onclick="openSectorModal()">🔄 Changer de secteur</button>
+<p style="font-size:0.75rem;color:var(--smoke);margin-top:0.3rem">Attention : vous revendrez vos machines à perte !</p>
+</div>
+
+<div class="finance-preview">
+<h4>💰 Prévision</h4>
+<div class="finance-row"><span>Revenus estimés</span><span class="positive" id="prev-revenue">+0₣</span></div>
+<div class="finance-row"><span>Salaires</span><span class="negative" id="prev-salary">−0₣</span></div>
+<div class="finance-row"><span>Entretien</span><span class="negative" id="prev-maint">−0₣</span></div>
+<div class="finance-row"><span>Intérêts dette</span><span class="negative" id="prev-interest">−0₣</span></div>
+<div class="finance-row"><span>Investissements</span><span id="prev-invest">0₣</span></div>
+<div class="finance-row total"><span>Bilan estimé</span><span id="prev-total">+0₣</span></div>
+</div>
+
+<button class="btn btn-success submit-btn" id="submit-btn" onclick="submitTurn()">✓ Valider mes décisions</button>
+</main>
+
+<!-- PANNEAU CLASSEMENT -->
+<aside class="panel ranking-panel">
+<h2>🏆 Classement</h2>
+<div class="ranking-list" id="ranking-list"></div>
+</aside>
+</div>
+</div>
+
+<!-- OVERLAY ÉVÉNEMENT -->
+<div class="event-overlay" id="event-overlay">
+<div class="event-card">
+<div class="event-header">
+<div class="event-type" id="ev-type">📰 Événement</div>
+<h3 id="ev-title">Titre</h3>
+</div>
+<div class="event-body">
+<p class="event-desc" id="ev-desc">Description...</p>
+<div class="event-effects" id="ev-effects"></div>
+<div class="event-learn" id="ev-learn"></div>
+<button class="btn btn-primary event-close" onclick="closeEvent()">Continuer</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL CHANGEMENT SECTEUR -->
+<div class="sector-modal" id="sector-modal">
+<div class="sector-modal-content">
+<h3>🔄 Changer de secteur</h3>
+<div class="sector-modal-warning">
+⚠️ <strong>Attention !</strong> Vos machines seront revendues à 50% de leur valeur. Vos ouvriers restent avec vous.
+</div>
+<div class="sector-modal-options" id="sector-modal-options"></div>
+<div class="sector-modal-buttons">
+<button class="btn" onclick="cancelSectorChange()">Annuler</button>
+<button class="btn btn-primary" onclick="confirmSectorChange()">Confirmer</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL LEXIQUE -->
+<div class="modal-overlay" id="lexicon-modal">
+<div class="modal-content modal-large">
+<div class="modal-header">
+<h2>📖 Lexique économique</h2>
+<button class="modal-close" onclick="closeLexicon()">×</button>
+</div>
+<div class="modal-body lexicon-body">
+<div class="lexicon-entry">
+<h4>💰 Capital</h4>
+<p>L'argent disponible pour faire fonctionner l'entreprise. S'il devient trop négatif, c'est la faillite.</p>
+</div>
+<div class="lexicon-entry">
+<h4>📈 Offre et Demande</h4>
+<p><strong>Offre</strong> : quantité de produits fabriqués par tous les industriels d'un secteur.<br>
+<strong>Demande</strong> : quantité que les clients veulent acheter.<br>
+Si l'offre dépasse la demande = surproduction, les prix chutent. Si la demande dépasse l'offre = pénurie, les prix montent.</p>
+</div>
+<div class="lexicon-entry">
+<h4>💹 Prix du marché</h4>
+<p>Le prix auquel vous vendez vos produits. Il varie selon l'offre et la demande. En surproduction, il peut chuter jusqu'à 40% du prix normal !</p>
+</div>
+<div class="lexicon-entry">
+<h4>🏭 Production</h4>
+<p>La quantité de biens que votre usine fabrique. Dépend du nombre de machines et d'ouvriers, et de leur efficacité.</p>
+</div>
+<div class="lexicon-entry">
+<h4>⚙️ Machines</h4>
+<p>Équipement industriel. Chaque machine peut produire jusqu'à 40 unités et nécessite 5 ouvriers pour fonctionner de façon optimale.</p>
+</div>
+<div class="lexicon-entry">
+<h4>👷 Ouvriers</h4>
+<p>La main-d'œuvre de votre usine. Trop peu = production réduite. Trop = surcoût sans gain. Les licenciements créent de la tension.</p>
+</div>
+<div class="lexicon-entry">
+<h4>💵 Salaire</h4>
+<p>Ce que vous payez vos ouvriers par jour. Un salaire bas (< 2₣) augmente la tension. Un salaire élevé (> 3₣) la diminue mais coûte cher.</p>
+</div>
+<div class="lexicon-entry">
+<h4>🔧 Entretien</h4>
+<p>L'argent investi dans la maintenance des machines. Sans entretien = risque d'accidents et de tension sociale.</p>
+</div>
+<div class="lexicon-entry">
+<h4>😤 Tension sociale</h4>
+<p>Le mécontentement de vos ouvriers. Si elle atteint 100%, c'est la révolte et vous êtes éliminé !</p>
+</div>
+<div class="lexicon-entry">
+<h4>💳 Dette</h4>
+<p>L'argent emprunté. Génère des intérêts de 10% par an. Une dette trop élevée (> 3× le capital) = faillite.</p>
+</div>
+<div class="lexicon-entry">
+<h4>📊 Part de marché</h4>
+<p>Votre part des ventes totales d'un secteur. Si vous produisez 25% de l'offre, vous vendez environ 25% de la demande.</p>
+</div>
+<div class="lexicon-entry">
+<h4>🔄 Reconversion</h4>
+<p>Changer de secteur industriel. Vos machines sont revendues à 50% de leur valeur. Utile pour fuir un secteur en crise.</p>
+</div>
+<div class="lexicon-entry">
+<h4>📉 Krach / Crise</h4>
+<p>Effondrement soudain de la demande. Les entreprises trop endettées font faillite en chaîne.</p>
+</div>
+<div class="lexicon-entry">
+<h4>📈 Boom économique</h4>
+<p>Période de forte croissance où la demande explose. Moment idéal pour investir... mais attention au retournement !</p>
+</div>
+<div class="lexicon-entry">
+<h4>💀 Faillite</h4>
+<p>Quand une entreprise ne peut plus payer ses dettes. Capital < -5000₣ ou dette > 3× capital = élimination.</p>
+</div>
+</div>
+</div>
+</div>
+
+<!-- MODAL AIDE CONTEXTUELLE -->
+<div class="modal-overlay" id="help-modal">
+<div class="modal-content">
+<div class="modal-header">
+<h2 id="help-title">❓ Aide</h2>
+<button class="modal-close" onclick="closeHelp()">×</button>
+</div>
+<div class="modal-body" id="help-content">
+</div>
+</div>
+</div>
+
+<!-- MODAL GRAPHIQUE SECTEUR -->
+<div class="modal-overlay" id="chart-modal">
+<div class="modal-content modal-large">
+<div class="modal-header">
+<h2 id="chart-title">📊 Historique du secteur</h2>
+<button class="modal-close" onclick="closeChart()">×</button>
+</div>
+<div class="modal-body">
+<div class="chart-container">
+<canvas id="sector-chart" width="500" height="250"></canvas>
+</div>
+<div class="chart-legend">
+<span class="legend-item"><span class="legend-color" style="background:#3498db"></span> Demande</span>
+<span class="legend-item"><span class="legend-color" style="background:#e74c3c"></span> Offre</span>
+<span class="legend-item"><span class="legend-color" style="background:#2ecc71"></span> Prix</span>
+</div>
+</div>
+</div>
+</div>
+
+<!-- POPUP FAILLITE (pour le joueur éliminé) -->
+<div class="event-overlay" id="bankruptcy-overlay">
+<div class="event-card" style="border-color: #a52a2a;">
+<div class="event-header" style="background: #a52a2a;">
+<div class="event-type">💀 FAILLITE</div>
+<h3 id="bankruptcy-title">Vous avez fait faillite !</h3>
+</div>
+<div class="event-body">
+<p class="event-desc" id="bankruptcy-desc">Votre entreprise n'a pas survécu aux aléas du marché.</p>
+<div class="event-effects">
+<h4>📊 Votre bilan final :</h4>
+<div id="bankruptcy-stats"></div>
+</div>
+<div class="event-learn">
+<strong>📚 Leçon :</strong> <span id="bankruptcy-lesson">Dans le capitalisme du XIXe siècle, la faillite guette chaque industriel.</span>
+</div>
+<button class="btn btn-primary event-close" onclick="closeBankruptcy()">Voir le classement</button>
+</div>
+</div>
+</div>
+
+<!-- POPUP NOTIFICATION (faillites des autres, événements individuels) -->
+<div class="notification-container" id="notification-container"></div>
+
+<!-- POPUP ÉVÉNEMENT INDIVIDUEL -->
+<div class="event-overlay" id="individual-event-overlay">
+<div class="event-card" id="individual-event-card">
+<div class="event-header" id="individual-event-header">
+<div class="event-type" id="ind-ev-type">⭐ Événement</div>
+<h3 id="ind-ev-title">Titre</h3>
+</div>
+<div class="event-body">
+<p class="event-desc" id="ind-ev-desc">Description...</p>
+<div class="event-effects" id="ind-ev-effects"></div>
+<div class="event-learn" id="ind-ev-learn"></div>
+<button class="btn btn-primary event-close" onclick="closeIndividualEvent()">Continuer</button>
+</div>
+</div>
+</div>
+
+<!-- ÉCRAN FIN -->
+<div id="end-screen" class="screen">
+<div class="end-card">
+<div class="end-header">
+<h1>🏁 Fin de la partie</h1>
+<div class="end-rank" id="end-rank">🥇</div>
+<div class="end-badge" id="end-badge">Résultat</div>
+</div>
+<div class="end-body">
+<div class="final-ranking">
+<h3>🏆 Classement final</h3>
+<div class="final-ranking-list" id="final-ranking"></div>
+</div>
+<div class="concepts-section">
+<h3>📚 Concepts découverts pendant la partie</h3>
+<div class="concept-tags" id="end-concepts"></div>
+</div>
+<div class="end-buttons">
+<button class="btn btn-primary" onclick="location.reload()">🔄 Nouvelle partie</button>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+// ============================================
+// CONFIGURATION FIREBASE
+// ============================================
+const firebaseConfig = {
+    apiKey: "AIzaSyAxTyBmMn9Y7MyG3NpMoRvMrn7TE45V8lQ",
+    authDomain: "forges-du-progres.firebaseapp.com",
+    databaseURL: "https://forges-du-progres-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "forges-du-progres",
+    storageBucket: "forges-du-progres.firebasestorage.app",
+    messagingSenderId: "429109623434",
+    appId: "1:429109623434:web:d6a36cb0a5b4a434f08b73"
+};
+
+// Initialisation Firebase
+let db = null;
+let gameRef = null;
+let playersRef = null;
+let myPlayerRef = null;
+
+try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+} catch(e) {
+    console.log("Firebase non configuré - mode démo local");
+}
+
+// ============================================
+// CONFIGURATION DU JEU
+// ============================================
+const CONFIG = {
+    maxTurns: 20,
+    startYear: 1840,
+    startCapital: 20000,
+    startWorkers: 12,
+    startMachines: 2,
+    workerCost: 40,
+    machineCost: 2500,
+    machineResale: 1200,
+    machineCapacity: 40,      
+    workersPerMachine: 5,     
+    workerProductivity: 5,    
+    daysPerYear: 150,         // Jours travaillés par an
+    interestRate: 0.10,       
+    // Demande calibrée pour 18-25 joueurs
+    baseDemandPerSector: 120, 
+    demandPerPlayer: 10,      // 20 joueurs = 120+200 = 320 demande/secteur
+    minDemand: 60,
+    maxDemand: 1200
+};
+
+const SECTORS = {
+    textile: { name: "Textile", icon: "🧵", color: "#6b5b95", basePrice: 120, volatility: 0.15 },
+    metal: { name: "Métallurgie", icon: "⚒️", color: "#4a4a4a", basePrice: 150, volatility: 0.2 },
+    mine: { name: "Mines", icon: "⛏️", color: "#8b6914", basePrice: 100, volatility: 0.25 },
+    meca: { name: "Mécanique", icon: "🚂", color: "#2980b9", basePrice: 180, volatility: 0.18 },
+    chimie: { name: "Chimie", icon: "⚗️", color: "#27ae60", basePrice: 140, volatility: 0.22 }
+};
+
+const EVENTS = {
+    crisis: {
+        type: "📉 Crise", title: "Krach boursier !",
+        desc: "Panique sur les marchés ! La demande s'effondre dans tous les secteurs.",
+        effects: { demandMult: 0.6 },
+        learn: "Les crises de 1847 et 1857 ont ruiné des milliers d'entreprises."
+    },
+    boom: {
+        type: "📈 Boom", title: "Boom économique !",
+        desc: "L'économie est florissante ! Les commandes explosent.",
+        effects: { demandMult: 1.5 },
+        learn: "Les périodes de croissance poussent à l'investissement... jusqu'à la prochaine crise."
+    },
+    war: {
+        type: "⚔️ Guerre", title: "Conflit armé !",
+        desc: "La guerre éclate ! La métallurgie et la mécanique sont très demandées.",
+        effects: { sectorBonus: { metal: 1.8, meca: 1.6, textile: 0.8 } },
+        learn: "Les guerres enrichissent les marchands de canons et ruinent les autres."
+    },
+    railroad: {
+        type: "🚂 Progrès", title: "Expansion du chemin de fer !",
+        desc: "Le réseau ferroviaire s'étend. Mines et métallurgie en profitent.",
+        effects: { sectorBonus: { mine: 1.5, metal: 1.4, meca: 1.3 } },
+        learn: "Le rail révolutionne l'économie et crée de nouveaux marchés."
+    },
+    epidemic: {
+        type: "☠️ Épidémie", title: "Le choléra frappe !",
+        desc: "Épidémie ! La chimie est très demandée, main-d'œuvre réduite partout.",
+        effects: { sectorBonus: { chimie: 2.0 }, workerLoss: 0.1 },
+        learn: "Le choléra tue surtout dans les quartiers ouvriers insalubres."
+    },
+    strike: {
+        type: "✊ Grève", title: "Grève générale !",
+        desc: "Mouvement social massif ! Tension +15 pour tous.",
+        effects: { tensionAll: 15 },
+        learn: "La grève est l'arme des ouvriers contre l'exploitation."
+    },
+    fashion: {
+        type: "👗 Mode", title: "Nouvelle mode !",
+        desc: "La bourgeoisie s'entiche de nouveaux vêtements. Le textile explose !",
+        effects: { sectorBonus: { textile: 1.8 } },
+        learn: "La mode crée des cycles de demande imprévisibles."
+    },
+    innovation: {
+        type: "💡 Innovation", title: "Révolution technique !",
+        desc: "Nouvelles machines plus efficaces ! Production +20% pour tous.",
+        effects: { productionBonus: 1.2 },
+        learn: "L'innovation technique bouleverse sans cesse l'industrie."
+    },
+    competition: {
+        type: "🌍 Commerce", title: "Concurrence étrangère !",
+        desc: "Les Anglais inondent le marché. Prix en baisse partout.",
+        effects: { priceMult: 0.8 },
+        learn: "Le libre-échange met les industries nationales en compétition mondiale."
+    },
+    speculation: {
+        type: "📊 Finance", title: "Bulle spéculative !",
+        desc: "Spéculation folle ! Les prix s'envolent... pour l'instant.",
+        effects: { priceMult: 1.4 },
+        learn: "Les bulles spéculatives finissent toujours par éclater."
+    }
+};
+
+// Événements INDIVIDUELS (affectent un seul joueur)
+const INDIVIDUAL_EVENTS = {
+    // POSITIFS
+    inheritance: {
+        type: "good", icon: "💰", title: "Héritage inattendu !",
+        desc: "Un oncle éloigné vous lègue une somme rondelette.",
+        effect: { capital: 3000 },
+        learn: "La bourgeoisie se transmet le capital de génération en génération."
+    },
+    contract: {
+        type: "good", icon: "📜", title: "Contrat gouvernemental !",
+        desc: "L'État vous commande une grosse livraison.",
+        effect: { capital: 2500 },
+        learn: "Les commandes publiques font la fortune de nombreux industriels."
+    },
+    innovation_ind: {
+        type: "good", icon: "💡", title: "Innovation de vos ouvriers !",
+        desc: "Un de vos ouvriers propose une amélioration qui booste la production.",
+        effect: { productionBonus: 1.3 },
+        learn: "L'innovation vient souvent de ceux qui travaillent les machines."
+    },
+    reputation: {
+        type: "good", icon: "⭐", title: "Excellente réputation !",
+        desc: "Votre qualité est reconnue, les clients affluent.",
+        effect: { demandBonus: 30 },
+        learn: "La réputation est un capital immatériel précieux."
+    },
+    loyal_workers: {
+        type: "good", icon: "🤝", title: "Fidélité ouvrière !",
+        desc: "Vos ouvriers apprécient vos conditions de travail.",
+        effect: { tension: -15 },
+        learn: "Un patron respecté évite les conflits sociaux."
+    },
+    // NÉGATIFS
+    fire: {
+        type: "bad", icon: "🔥", title: "Incendie dans votre usine !",
+        desc: "Un incendie détruit une partie de vos installations.",
+        effect: { capital: -2000 },
+        learn: "Les usines du XIXe siècle brûlent régulièrement, faute de normes."
+    },
+    accident: {
+        type: "bad", icon: "⚠️", title: "Accident grave !",
+        desc: "Un ouvrier est grièvement blessé. Vous devez indemniser.",
+        effect: { capital: -1500, tension: 10 },
+        learn: "Sans lois sociales, les accidents ruinent les familles ouvrières."
+    },
+    theft: {
+        type: "bad", icon: "🦹", title: "Vol dans l'entrepôt !",
+        desc: "Des marchandises ont disparu pendant la nuit.",
+        effect: { capital: -1000 },
+        learn: "La misère pousse parfois au vol."
+    },
+    lawsuit: {
+        type: "bad", icon: "⚖️", title: "Procès d'un concurrent !",
+        desc: "Un concurrent vous attaque en justice pour concurrence déloyale.",
+        effect: { capital: -2000 },
+        learn: "Les tribunaux de commerce arbitrent les conflits entre patrons."
+    },
+    machine_breakdown: {
+        type: "bad", icon: "⚙️", title: "Panne majeure !",
+        desc: "Une de vos machines tombe en panne irréparable.",
+        effect: { machines: -1 },
+        learn: "Les machines du XIXe siècle sont fragiles et coûteuses à réparer."
+    },
+    worker_leaving: {
+        type: "bad", icon: "🚶", title: "Départ d'ouvriers !",
+        desc: "Plusieurs ouvriers quittent votre usine pour un concurrent.",
+        effect: { workers: -3 },
+        learn: "Les ouvriers qualifiés sont rares et convoités."
+    },
+    sabotage: {
+        type: "bad", icon: "🔨", title: "Sabotage !",
+        desc: "Des ouvriers mécontents ont saboté une machine.",
+        effect: { capital: -1500, tension: 15 },
+        learn: "Le sabotage est une forme de résistance ouvrière."
+    },
+    bad_batch: {
+        type: "bad", icon: "📦", title: "Lot défectueux !",
+        desc: "Une livraison entière est refusée pour malfaçon.",
+        effect: { capital: -1200 },
+        learn: "La qualité est essentielle pour fidéliser les clients."
+    }
+};
+
+// ============================================
+// ÉTAT LOCAL DU JOUEUR
+// ============================================
+let ME = {
+    id: null,
+    name: "",
+    isHost: false,
+    sector: "textile",
+    capital: CONFIG.startCapital,
+    workers: CONFIG.startWorkers,
+    machines: CONFIG.startMachines,
+    debt: 0,
+    tension: 15,
+    salary: 2.0,
+    maintenance: 2,
+    ready: false,
+    eliminated: false,
+    // Décisions en cours
+    targetWorkers: CONFIG.startWorkers,
+    targetMachines: CONFIG.startMachines,
+    newSector: null,
+    concepts: new Set(),
+    eventSeen: false,
+    indEventSeen: false
+};
+
+let GAME = {
+    code: "",
+    turn: 1,
+    year: CONFIG.startYear,
+    phase: "lobby", // lobby, playing, ended
+    sectors: {},
+    event: null,
+    players: {},
+    ranking: [],
+    bankruptcies: [],
+    history: {} // Historique par secteur : { textile: [{turn, demand, supply, price}, ...], ... }
+};
+
+// ============================================
+// FONCTIONS UTILITAIRES
+// ============================================
+function fmt(n) { return Math.floor(n).toLocaleString('fr-FR') + '₣'; }
+function generateCode() { return 'FORGE-' + Math.random().toString(36).substr(2, 4).toUpperCase(); }
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id + '-screen').classList.add('active');
+}
+function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 5000);
+}
+
+// ============================================
+// FIREBASE - CRÉATION / REJOINDRE PARTIE
+// ============================================
+async function createGame() {
+    const name = document.getElementById('player-name').value.trim();
+    if (!name) { showError("Entrez votre nom !"); return; }
+    
+    ME.name = name;
+    ME.id = 'player_' + Date.now();
+    ME.isHost = true;
+    GAME.code = generateCode();
+    
+    if (db) {
+        // Créer la partie dans Firebase
+        gameRef = db.ref('games/' + GAME.code);
+        await gameRef.set({
+            config: CONFIG,
+            state: {
+                turn: 1,
+                year: CONFIG.startYear,
+                phase: 'lobby',
+                event: null,
+                sectors: initSectors(),
+                hostId: ME.id
+            }
+        });
+        
+        // Ajouter le joueur
+        playersRef = gameRef.child('players');
+        myPlayerRef = playersRef.child(ME.id);
+        await myPlayerRef.set(createPlayerData());
+        
+        // Écouter les changements
+        setupListeners();
+    } else {
+        // Mode local (démo)
+        GAME.sectors = initSectors();
+        GAME.players[ME.id] = createPlayerData();
+    }
+    
+    document.getElementById('display-code').textContent = GAME.code;
+    showScreen('lobby');
+    updateLobbyUI();
+}
+
+async function joinGame() {
+    const name = document.getElementById('player-name').value.trim();
+    const code = document.getElementById('game-code').value.trim().toUpperCase();
+    
+    if (!name) { showError("Entrez votre nom !"); return; }
+    if (!code) { showError("Entrez le code de la partie !"); return; }
+    
+    ME.name = name;
+    ME.id = 'player_' + Date.now();
+    GAME.code = code;
+    
+    if (db) {
+        gameRef = db.ref('games/' + code);
+        const snapshot = await gameRef.once('value');
+        
+        if (!snapshot.exists()) {
+            showError("Partie introuvable !");
+            return;
+        }
+        
+        const gameData = snapshot.val();
+        if (gameData.state.phase !== 'lobby') {
+            showError("Cette partie a déjà commencé !");
+            return;
+        }
+        
+        // Rejoindre
+        playersRef = gameRef.child('players');
+        myPlayerRef = playersRef.child(ME.id);
+        await myPlayerRef.set(createPlayerData());
+        
+        setupListeners();
+    }
+    
+    document.getElementById('display-code').textContent = GAME.code;
+    showScreen('lobby');
+}
+
+function createPlayerData() {
+    return {
+        name: ME.name,
+        sector: ME.sector,
+        capital: ME.capital,
+        workers: ME.workers,
+        machines: ME.machines,
+        debt: ME.debt,
+        tension: ME.tension,
+        salary: ME.salary,
+        maintenance: ME.maintenance,
+        ready: false,
+        eliminated: false,
+        production: 0
+    };
+}
+
+function initSectors() {
+    const sectors = {};
+    Object.keys(SECTORS).forEach(key => {
+        sectors[key] = {
+            demand: CONFIG.baseDemandPerSector,
+            supply: 0,
+            price: SECTORS[key].basePrice,
+            trend: 1
+        };
+    });
+    return sectors;
+}
+
+// ============================================
+// FIREBASE - LISTENERS
+// ============================================
+function setupListeners() {
+    if (!gameRef) return;
+    
+    // Écouter l'état du jeu
+    gameRef.child('state').on('value', snapshot => {
+        const state = snapshot.val();
+        if (state) {
+            const wasLobby = GAME.phase === 'lobby';
+            const previousTurn = GAME.turn;
+            
+            GAME.turn = state.turn;
+            GAME.year = state.year;
+            GAME.phase = state.phase;
+            GAME.sectors = state.sectors || {};
+            GAME.event = state.event;
+            GAME.bankruptcies = state.bankruptcies || [];
+            
+            if (GAME.phase === 'playing') {
+                showScreen('game');
+                
+                // Si on vient de passer du lobby au jeu, réinitialiser
+                if (wasLobby) {
+                    ME.ready = false;
+                    ME.eventSeen = false;
+                    ME.indEventSeen = false;
+                    // Initialiser l'historique
+                    GAME.history = {};
+                    recordHistory();
+                }
+                
+                // Nouveau tour détecté ?
+                if (state.turn > previousTurn) {
+                    ME.eventSeen = false;
+                    ME.indEventSeen = false;
+                    
+                    // Enregistrer l'historique
+                    recordHistory();
+                    
+                    // Afficher l'événement global d'abord
+                    if (GAME.event) {
+                        showEvent(GAME.event);
+                    } else {
+                        // Pas d'événement global, vérifier les notifications directement
+                        checkForNotifications();
+                    }
+                }
+            } else if (GAME.phase === 'ended') {
+                // Vérifier si je suis éliminé avant d'afficher l'écran de fin
+                if (ME.eliminated) {
+                    // L'écran de faillite sera affiché par checkForNotifications
+                    checkForNotifications();
+                } else {
+                    showEndScreen();
+                }
+            }
+            
+            updateUI();
+        }
+    });
+    
+    // Écouter les joueurs
+    playersRef.on('value', snapshot => {
+        GAME.players = snapshot.val() || {};
+        
+        // Synchroniser mon état local avec Firebase
+        if (GAME.players[ME.id] && GAME.phase === 'playing') {
+            const myData = GAME.players[ME.id];
+            
+            // Détecter si je viens d'être éliminé
+            const wasAlive = !ME.eliminated;
+            
+            // Mettre à jour l'état local avec les données Firebase
+            ME.capital = myData.capital;
+            ME.workers = myData.workers;
+            ME.machines = myData.machines;
+            ME.debt = myData.debt;
+            ME.tension = myData.tension;
+            ME.sector = myData.sector;
+            ME.eliminated = myData.eliminated;
+            ME.ready = myData.ready;
+            
+            // Réinitialiser les cibles pour le prochain tour
+            if (!ME.ready) {
+                ME.targetWorkers = ME.workers;
+                ME.targetMachines = ME.machines;
+                ME.newSector = null;
+            }
+        }
+        
+        updateRanking();
+        updateUI();
+        
+        // Vérifier si tous sont prêts (seulement l'hôte fait ça)
+        if (GAME.phase === 'playing' && ME.isHost) {
+            checkAllReady();
+        }
+    });
+    
+    // Déconnexion
+    myPlayerRef.onDisconnect().remove();
+}
+
+// ============================================
+// LOBBY
+// ============================================
+function updateLobbyUI() {
+    // Liste des secteurs
+    const sectorsHtml = Object.entries(SECTORS).map(([key, s]) => {
+        const count = Object.values(GAME.players).filter(p => p.sector === key).length;
+        const selected = ME.sector === key ? 'selected' : '';
+        return `
+            <div class="sector-option ${selected}" onclick="selectSector('${key}')">
+                <span class="sector-icon">${s.icon}</span>
+                <div class="sector-info">
+                    <div class="sector-name">${s.name}</div>
+                    <div class="sector-desc">Prix base: ${s.basePrice}₣</div>
+                </div>
+                <div class="sector-players">${count} joueur(s)</div>
+            </div>
+        `;
+    }).join('');
+    document.getElementById('sector-options').innerHTML = sectorsHtml;
+    
+    // Liste des joueurs
+    const playersHtml = Object.entries(GAME.players).map(([id, p]) => {
+        const isMe = id === ME.id;
+        const s = SECTORS[p.sector];
+        return `
+            <div class="player-card ${p.ready ? 'ready' : ''} ${isMe ? 'self' : ''} ${p.isHost ? 'host' : ''}">
+                <span class="player-icon">${s.icon}</span>
+                <div class="player-info">
+                    <div class="player-name">${p.name}</div>
+                    <div class="player-meta">${s.name}</div>
+                </div>
+                <span class="player-badge ${p.ready ? 'ready' : 'waiting'}">${p.ready ? '✓' : '...'}</span>
+            </div>
+        `;
+    }).join('');
+    document.getElementById('players-list').innerHTML = playersHtml;
+    
+    // Compteurs
+    const total = Object.keys(GAME.players).length;
+    const ready = Object.values(GAME.players).filter(p => p.ready).length;
+    document.getElementById('player-count').textContent = total;
+    document.getElementById('ready-count').textContent = ready;
+    document.getElementById('total-count').textContent = total;
+    document.getElementById('waiting-count').textContent = ready;
+    document.getElementById('waiting-total').textContent = total;
+    
+    // Bouton Start : visible seulement pour l'hôte, actif si au moins 2 joueurs
+    const startBtn = document.getElementById('start-btn');
+    const hostTip = document.getElementById('host-tip');
+    if (ME.isHost) {
+        startBtn.style.display = 'inline-block';
+        startBtn.disabled = total < 2;
+        if (total < 2) {
+            hostTip.textContent = '⏳ En attente d\'au moins 2 joueurs...';
+        } else if (ready < total) {
+            hostTip.textContent = `✅ Vous pouvez lancer la partie (${ready}/${total} prêts)`;
+        } else {
+            hostTip.textContent = '🎮 Tous les joueurs sont prêts ! Lancez la partie !';
+        }
+    } else {
+        startBtn.style.display = 'none';
+        hostTip.textContent = '⏳ En attente que l\'enseignant lance la partie...';
+    }
+    
+    // Bouton Ready : l'hôte n'a PAS besoin d'être prêt, il lance directement
+    const readyBtn = document.getElementById('ready-btn');
+    if (ME.isHost) {
+        readyBtn.style.display = 'none'; // L'hôte n'a pas besoin de ce bouton
+    } else {
+        readyBtn.style.display = 'inline-block';
+        readyBtn.textContent = ME.ready ? '✗ Annuler' : '✓ Je suis prêt';
+        readyBtn.className = ME.ready ? 'btn btn-danger btn-large' : 'btn btn-success btn-large';
+    }
+}
+
+function selectSector(key) {
+    ME.sector = key;
+    if (myPlayerRef) {
+        myPlayerRef.update({ sector: key });
+    } else {
+        GAME.players[ME.id] = { ...GAME.players[ME.id], sector: key };
+    }
+    updateLobbyUI();
+}
+
+function toggleReady() {
+    ME.ready = !ME.ready;
+    if (myPlayerRef) {
+        myPlayerRef.update({ ready: ME.ready });
+    } else {
+        GAME.players[ME.id].ready = ME.ready;
+    }
+    updateLobbyUI();
+}
+
+async function startGame() {
+    if (!ME.isHost) return;
+    
+    const numPlayers = Object.keys(GAME.players).length;
+    
+    // Production moyenne par joueur au départ
+    const avgProductionPerPlayer = CONFIG.startWorkers * CONFIG.workerProductivity * 0.9; // ~54 unités
+    
+    // Demande = base fixe + demande liée aux joueurs
+    // La base fixe permet de grandir, la partie variable évite la surproduction immédiate
+    // 
+    // Avec 5 joueurs : 150 + (5 × 54 × 1.2) / 5 = 150 + 65 = 215/secteur
+    // Avec 20 joueurs : 150 + (20 × 54 × 1.2) / 5 = 150 + 259 = 409/secteur
+    // Avec 25 joueurs : 150 + (25 × 54 × 1.2) / 5 = 150 + 324 = 474/secteur
+    
+    const baseDemandPerSector = 150; // Demande incompressible (marché existe sans les joueurs)
+    const playerDemandContribution = (numPlayers * avgProductionPerPlayer * 1.2) / 5;
+    const demandPerSector = Math.floor(baseDemandPerSector + playerDemandContribution);
+    
+    console.log(`${numPlayers} joueurs, production moyenne: ${avgProductionPerPlayer}`);
+    console.log(`Demande/secteur: ${baseDemandPerSector} (base) + ${Math.floor(playerDemandContribution)} (joueurs) = ${demandPerSector}`);
+    
+    // Initialiser les secteurs avec la même demande de base
+    const sectors = {};
+    Object.entries(SECTORS).forEach(([key, s]) => {
+        sectors[key] = {
+            demand: demandPerSector,
+            supply: 0,
+            price: s.basePrice,
+            trend: 1
+        };
+    });
+    
+    if (gameRef) {
+        // Initialiser tous les joueurs
+        const playerUpdates = {};
+        Object.entries(GAME.players).forEach(([id, p]) => {
+            playerUpdates[`players/${id}/ready`] = false;
+            playerUpdates[`players/${id}/capital`] = CONFIG.startCapital;
+            playerUpdates[`players/${id}/workers`] = CONFIG.startWorkers;
+            playerUpdates[`players/${id}/machines`] = CONFIG.startMachines;
+            playerUpdates[`players/${id}/salary`] = 2.0;
+            playerUpdates[`players/${id}/maintenance`] = 2;
+            playerUpdates[`players/${id}/debt`] = 0;
+            playerUpdates[`players/${id}/tension`] = 15;
+            playerUpdates[`players/${id}/eliminated`] = false;
+            playerUpdates[`players/${id}/production`] = 0;
+        });
+        
+        await gameRef.update(playerUpdates);
+        
+        await gameRef.child('state').update({
+            phase: 'playing',
+            turn: 1,
+            year: CONFIG.startYear,
+            sectors: sectors,
+            event: null,
+            numPlayers: numPlayers
+        });
+    } else {
+        GAME.phase = 'playing';
+        GAME.sectors = sectors;
+        showScreen('game');
+    }
+}
+
+// Fonction pour l'enseignant : lancer la partie même si tout le monde n'est pas prêt
+async function forceStartGame() {
+    if (!ME.isHost) {
+        alert("Seul l'hôte peut lancer la partie !");
+        return;
+    }
+    
+    const total = Object.keys(GAME.players).length;
+    if (total < 2) {
+        alert("Il faut au moins 2 joueurs pour commencer !");
+        return;
+    }
+    
+    const ready = Object.values(GAME.players).filter(p => p.ready).length;
+    if (ready < total) {
+        if (!confirm(`Attention : seulement ${ready}/${total} joueurs sont prêts.\n\nLancer quand même ?`)) {
+            return;
+        }
+    }
+    
+    await startGame();
+}
+
+// ============================================
+// JEU - INTERFACE
+// ============================================
+function updateUI() {
+    if (GAME.phase === 'lobby') {
+        updateLobbyUI();
+        return;
+    }
+    
+    // Header
+    document.getElementById('h-year').textContent = GAME.year;
+    document.getElementById('h-turn').textContent = GAME.turn + '/' + CONFIG.maxTurns;
+    const alive = Object.values(GAME.players).filter(p => !p.eliminated).length;
+    document.getElementById('h-alive').textContent = alive;
+    
+    // Mon rang
+    const rank = GAME.ranking.findIndex(p => p.id === ME.id) + 1;
+    document.getElementById('h-rank').textContent = '#' + (rank || '?');
+    
+    // Indicateur de tour
+    const indicator = document.getElementById('turn-indicator');
+    const readyCount = Object.values(GAME.players).filter(p => !p.eliminated && p.ready).length;
+    const aliveCount = Object.values(GAME.players).filter(p => !p.eliminated).length;
+    indicator.textContent = `⏳ ${readyCount}/${aliveCount} prêts`;
+    indicator.className = 'turn-indicator ' + (ME.ready ? 'ready' : 'waiting');
+    
+    // Marchés
+    updateMarketsDisplay();
+    
+    // Mon usine
+    document.getElementById('f-capital').textContent = fmt(ME.capital);
+    document.getElementById('f-capital').className = 'factory-stat-value' + (ME.capital < 0 ? ' negative' : '');
+    document.getElementById('f-workers').textContent = ME.workers;
+    document.getElementById('f-machines').textContent = ME.machines;
+    document.getElementById('f-debt').textContent = fmt(ME.debt);
+    document.getElementById('f-debt').className = 'factory-stat-value' + (ME.debt > 0 ? ' negative' : '');
+    
+    const s = SECTORS[ME.sector];
+    document.getElementById('f-sector').textContent = s.icon;
+    
+    // Afficher si changement de secteur prévu
+    if (ME.newSector && ME.newSector !== ME.sector) {
+        const newS = SECTORS[ME.newSector];
+        document.getElementById('f-sector-name').innerHTML = `<s>${s.name}</s> → <strong>${newS.name}</strong> ${newS.icon}`;
+    } else {
+        document.getElementById('f-sector-name').textContent = s.name;
+    }
+    
+    const prod = calculateProduction();
+    document.getElementById('f-production').textContent = prod;
+    
+    document.getElementById('tension-value').textContent = Math.floor(ME.tension) + '%';
+    document.getElementById('tension-marker').style.left = Math.min(100, ME.tension) + '%';
+    
+    // Décisions
+    document.getElementById('d-year').textContent = GAME.year;
+    document.getElementById('d-workers').textContent = ME.targetWorkers;
+    document.getElementById('d-machines').textContent = ME.targetMachines;
+    document.getElementById('d-salary').textContent = ME.salary.toFixed(2) + '₣';
+    document.getElementById('d-maint').textContent = ['Aucun', 'Minimal', 'Normal', 'Optimal'][ME.maintenance];
+    
+    document.getElementById('repay-btn').style.display = ME.debt > 0 ? 'inline-block' : 'none';
+    
+    // Prévisions
+    updateFinancePreview();
+    
+    // Classement
+    updateRankingDisplay();
+    
+    // Bouton submit - vérifier l'état dans Firebase, pas juste local
+    const myFirebaseData = GAME.players[ME.id] || {};
+    const amIReady = myFirebaseData.ready || false;
+    document.getElementById('submit-btn').disabled = amIReady || ME.eliminated;
+    document.getElementById('submit-btn').textContent = amIReady ? '⏳ En attente des autres joueurs...' : '✓ Valider mes décisions';
+}
+
+function updateMarketsDisplay() {
+    let html = '';
+    Object.entries(SECTORS).forEach(([key, s]) => {
+        const market = GAME.sectors[key] || { demand: 1000, supply: 0, price: s.basePrice };
+        const isCurrent = key === ME.sector;
+        const isTarget = ME.newSector === key;
+        const ratio = market.supply > 0 ? market.demand / market.supply : 2;
+        
+        let status = '';
+        if (ratio < 0.7) status = '<span class="oversupply">⚠️ Surproduction !</span>';
+        else if (ratio > 1.5) status = '<span class="undersupply">📈 Forte demande</span>';
+        
+        // Indicateur de tendance des prix
+        const basePrice = SECTORS[key].basePrice;
+        let priceTrend = '';
+        if (market.price > basePrice * 1.2) priceTrend = ' 🔺';
+        else if (market.price < basePrice * 0.8) priceTrend = ' 🔻';
+        
+        const maxBar = Math.max(market.demand, market.supply, 1);
+        const demandPct = (market.demand / maxBar) * 100;
+        const supplyPct = (market.supply / maxBar) * 100;
+        
+        html += `
+            <div class="sector-market ${isCurrent ? 'current' : ''} ${isTarget ? 'target' : ''}">
+                <div class="sector-market-header">
+                    <span class="sector-market-name">${s.icon} ${s.name}</span>
+                    <span>
+                        <button class="chart-btn" onclick="showSectorChart('${key}')" title="Voir l'historique">📊</button>
+                        <span class="sector-market-price">${Math.floor(market.price)}₣${priceTrend}</span>
+                    </span>
+                </div>
+                <div class="sector-market-bar">
+                    <div class="bar-demand" style="width:${demandPct}%"></div>
+                    <div class="bar-supply" style="width:${supplyPct}%"></div>
+                </div>
+                <div class="sector-market-stats">
+                    <span>Demande: ${Math.floor(market.demand)}</span>
+                    <span>Offre: ${Math.floor(market.supply)}</span>
+                </div>
+                ${status}
+            </div>
+        `;
+    });
+    document.getElementById('markets-display').innerHTML = html;
+    
+    // Tendance globale
+    const avgRatio = Object.values(GAME.sectors).reduce((sum, m) => sum + (m.demand / Math.max(m.supply, 1)), 0) / 5;
+    let trend = '⚖️ Équilibre';
+    if (avgRatio > 1.3) trend = '📈 Croissance';
+    else if (avgRatio < 0.8) trend = '📉 Récession';
+    document.getElementById('global-trend').innerHTML = trend;
+}
+
+function updateRankingDisplay() {
+    const html = GAME.ranking.map((p, i) => {
+        const isMe = p.id === ME.id;
+        const s = SECTORS[p.sector];
+        return `
+            <div class="ranking-item ${isMe ? 'self' : ''} ${p.eliminated ? 'eliminated' : ''}">
+                <span class="ranking-pos">${i + 1}</span>
+                <span class="ranking-name">${p.name}</span>
+                <span class="ranking-sector">${s.icon}</span>
+                <span class="ranking-capital ${p.capital < 0 ? 'negative' : ''}">${fmt(p.capital)}</span>
+                ${!p.eliminated ? `<span class="ranking-status ${p.ready ? 'ready' : 'waiting'}">${p.ready ? '✓' : '...'}</span>` : ''}
+            </div>
+        `;
+    }).join('');
+    document.getElementById('ranking-list').innerHTML = html;
+}
+
+function updateRanking() {
+    GAME.ranking = Object.entries(GAME.players)
+        .map(([id, p]) => ({ id, ...p }))
+        .sort((a, b) => {
+            if (a.eliminated && !b.eliminated) return 1;
+            if (!a.eliminated && b.eliminated) return -1;
+            return b.capital - a.capital;
+        });
+}
+
+// ============================================
+// CALCULS
+// ============================================
+function calculateProduction() {
+    const machineCapacity = ME.targetMachines * CONFIG.machineCapacity;
+    const optimalWorkers = ME.targetMachines * CONFIG.workersPerMachine;
+    
+    let efficiency = 1;
+    if (optimalWorkers === 0) {
+        efficiency = 0;
+    } else if (ME.targetWorkers < optimalWorkers * 0.5) {
+        efficiency = ME.targetWorkers / (optimalWorkers * 0.5) * 0.5;
+    } else if (ME.targetWorkers < optimalWorkers) {
+        efficiency = 0.5 + (ME.targetWorkers - optimalWorkers * 0.5) / (optimalWorkers * 0.5) * 0.5;
+    } else if (ME.targetWorkers > optimalWorkers * 1.5) {
+        const excess = ME.targetWorkers - optimalWorkers * 1.5;
+        efficiency = Math.max(0.5, 1 - excess * 0.02);
+    }
+    
+    const workerOutput = ME.targetWorkers * CONFIG.workerProductivity * efficiency;
+    return Math.floor(Math.min(machineCapacity, workerOutput));
+}
+
+function updateFinancePreview() {
+    const market = GAME.sectors[ME.sector] || { demand: 200, supply: 0, price: 80 };
+    const prod = calculateProduction();
+    
+    // Estimation des ventes
+    // En sous-production (demande > offre) : on vend tout
+    // En surproduction (offre > demande) : on vend au prorata
+    const currentSupply = market.supply || 0;
+    const totalSupplyEstimate = currentSupply + prod; // Estimation grossière
+    
+    let estimatedSales;
+    if (totalSupplyEstimate <= market.demand) {
+        // Sous-production : on vend tout
+        estimatedSales = prod;
+    } else {
+        // Surproduction : on vend au prorata de notre part
+        const myShare = prod / totalSupplyEstimate;
+        estimatedSales = Math.floor(market.demand * myShare);
+    }
+    
+    const revenue = estimatedSales * market.price;
+    
+    const salaryCost = ME.targetWorkers * ME.salary * CONFIG.daysPerYear;
+    const maintCost = ME.targetMachines * [0, 80, 180, 350][ME.maintenance];
+    const interest = Math.floor(ME.debt * CONFIG.interestRate);
+    
+    // Investissements
+    const workerDiff = ME.targetWorkers - ME.workers;
+    const machineDiff = ME.targetMachines - ME.machines;
+    let investCost = 0;
+    if (workerDiff > 0) investCost += workerDiff * CONFIG.workerCost;
+    if (machineDiff > 0) investCost += machineDiff * CONFIG.machineCost;
+    if (machineDiff < 0) investCost += machineDiff * CONFIG.machineResale;
+    
+    // Changement de secteur
+    if (ME.newSector && ME.newSector !== ME.sector) {
+        investCost += ME.machines * CONFIG.machineResale; // Vente des machines
+        investCost -= ME.targetMachines * CONFIG.machineCost; // Nouvelles machines si demandées
+    }
+    
+    const total = revenue - salaryCost - maintCost - interest - investCost;
+    
+    document.getElementById('prev-revenue').textContent = '+' + fmt(revenue);
+    document.getElementById('prev-salary').textContent = '−' + fmt(salaryCost);
+    document.getElementById('prev-maint').textContent = '−' + fmt(maintCost);
+    document.getElementById('prev-interest').textContent = '−' + fmt(interest);
+    document.getElementById('prev-invest').textContent = (investCost >= 0 ? '−' : '+') + fmt(Math.abs(investCost));
+    document.getElementById('prev-invest').className = investCost >= 0 ? 'negative' : 'positive';
+    document.getElementById('prev-total').textContent = (total >= 0 ? '+' : '') + fmt(total);
+    document.getElementById('prev-total').className = total >= 0 ? 'positive' : 'negative';
+}
+
+// ============================================
+// ACTIONS JOUEUR
+// ============================================
+function adjustWorkers(delta) {
+    ME.targetWorkers = Math.max(0, ME.targetWorkers + delta);
+    updateUI();
+}
+
+function adjustMachines(delta) {
+    ME.targetMachines = Math.max(0, ME.targetMachines + delta);
+    updateUI();
+}
+
+function updateSalary(value) {
+    ME.salary = parseFloat(value);
+    document.getElementById('d-salary').textContent = ME.salary.toFixed(2) + '₣';
+    updateFinancePreview();
+}
+
+function updateMaint(value) {
+    ME.maintenance = parseInt(value);
+    document.getElementById('d-maint').textContent = ['Aucun', 'Minimal', 'Normal', 'Optimal'][ME.maintenance];
+    updateFinancePreview();
+}
+
+function takeLoan(amount) {
+    ME.debt += amount;
+    ME.capital += amount;
+    ME.concepts.add("Crédit");
+    ME.concepts.add("Dette");
+    updateUI();
+}
+
+function repayLoan() {
+    const amount = Math.min(ME.debt, ME.capital);
+    ME.debt -= amount;
+    ME.capital -= amount;
+    updateUI();
+}
+
+function openSectorModal() {
+    const html = Object.entries(SECTORS).map(([key, s]) => {
+        const isCurrent = key === ME.sector;
+        return `
+            <div class="sector-modal-option ${isCurrent ? 'disabled' : ''}" 
+                 onclick="${isCurrent ? '' : `selectNewSector('${key}')`}"
+                 data-sector="${key}">
+                <span style="font-size:1.5rem">${s.icon}</span>
+                <div>
+                    <strong>${s.name}</strong>
+                    ${isCurrent ? '<br><small>(secteur actuel)</small>' : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+    document.getElementById('sector-modal-options').innerHTML = html;
+    document.getElementById('sector-modal').classList.add('active');
+}
+
+function closeSectorModal() {
+    document.getElementById('sector-modal').classList.remove('active');
+    // Ne PAS effacer ME.newSector ici, seulement si on annule
+}
+
+function cancelSectorChange() {
+    document.getElementById('sector-modal').classList.remove('active');
+    ME.newSector = null;
+    updateUI();
+}
+
+function selectNewSector(key) {
+    document.querySelectorAll('.sector-modal-option').forEach(el => el.classList.remove('selected'));
+    document.querySelector(`.sector-modal-option[data-sector="${key}"]`).classList.add('selected');
+    ME.newSector = key;
+}
+
+function confirmSectorChange() {
+    if (ME.newSector && ME.newSector !== ME.sector) {
+        ME.concepts.add("Reconversion");
+        console.log("Changement de secteur prévu:", ME.sector, "→", ME.newSector);
+    }
+    document.getElementById('sector-modal').classList.remove('active');
+    updateUI();
+}
+
+// ============================================
+// VALIDATION DU TOUR
+// ============================================
+async function submitTurn() {
+    // Vérifier l'état dans Firebase
+    const myFirebaseData = GAME.players[ME.id] || {};
+    if (myFirebaseData.ready || ME.eliminated) {
+        console.log("Déjà prêt ou éliminé");
+        return;
+    }
+    
+    ME.ready = true;
+    
+    // Envoyer mes décisions au serveur
+    const myData = {
+        ready: true,
+        targetWorkers: ME.targetWorkers,
+        targetMachines: ME.targetMachines,
+        salary: ME.salary,
+        maintenance: ME.maintenance,
+        newSector: ME.newSector,
+        production: calculateProduction()
+    };
+    
+    console.log("Envoi des décisions:", myData);
+    
+    if (myPlayerRef) {
+        await myPlayerRef.update(myData);
+    } else {
+        Object.assign(GAME.players[ME.id], myData);
+    }
+    
+    updateUI();
+}
+
+async function checkAllReady() {
+    if (!ME.isHost) return;
+    
+    const alivePlayers = Object.values(GAME.players).filter(p => !p.eliminated);
+    const readyPlayers = alivePlayers.filter(p => p.ready);
+    
+    if (readyPlayers.length === alivePlayers.length && alivePlayers.length > 0) {
+        await resolveTurn();
+    }
+}
+
+async function resolveTurn() {
+    console.log("=== RÉSOLUTION DU TOUR ===");
+    
+    // Générer un événement GLOBAL aléatoire (30% de chance)
+    let event = null;
+    if (Math.random() < 0.3) {
+        const eventKeys = Object.keys(EVENTS);
+        const eventKey = eventKeys[Math.floor(Math.random() * eventKeys.length)];
+        event = { key: eventKey, ...EVENTS[eventKey] };
+        console.log("Événement global:", event.title);
+    }
+    
+    // Générer des événements INDIVIDUELS (15% de chance par joueur)
+    const individualEvents = {};
+    const indEventKeys = Object.keys(INDIVIDUAL_EVENTS);
+    Object.entries(GAME.players).forEach(([id, p]) => {
+        if (!p.eliminated && Math.random() < 0.15) {
+            const eventKey = indEventKeys[Math.floor(Math.random() * indEventKeys.length)];
+            individualEvents[id] = { key: eventKey, ...INDIVIDUAL_EVENTS[eventKey] };
+            console.log(`Événement individuel pour ${p.name}:`, individualEvents[id].title);
+        }
+    });
+    
+    // Calculer l'offre totale par secteur
+    const sectorSupply = {};
+    Object.keys(SECTORS).forEach(k => sectorSupply[k] = 0);
+    
+    Object.values(GAME.players).forEach(p => {
+        if (!p.eliminated) {
+            const sector = p.newSector || p.sector;
+            const production = p.production || 0;
+            sectorSupply[sector] = (sectorSupply[sector] || 0) + production;
+        }
+    });
+    
+    console.log("Offre par secteur:", sectorSupply);
+    
+    // Mise à jour des secteurs (demande, prix)
+    const newSectors = {};
+    Object.entries(GAME.sectors).forEach(([key, sector]) => {
+        const s = SECTORS[key];
+        let demand = sector.demand;
+        
+        // Prix de base qui ÉVOLUE selon l'offre/demande précédente
+        // Si surproduction → prix de base baisse / Si pénurie → prix de base monte
+        let basePrice = sector.price || s.basePrice;
+        const prevRatio = sector.supply > 0 ? sector.demand / sector.supply : 1.2;
+        if (prevRatio < 0.8) {
+            basePrice *= 0.95; // Surproduction → prix baisse durablement
+        } else if (prevRatio > 1.3) {
+            basePrice *= 1.05; // Pénurie → prix monte durablement
+        }
+        // Limites du prix de base
+        basePrice = Math.max(s.basePrice * 0.4, Math.min(s.basePrice * 2, basePrice));
+        
+        let price = basePrice;
+        
+        // Évolution naturelle de la demande (cycles économiques)
+        const trend = 0.92 + Math.random() * 0.16; // -8% à +8%
+        demand *= trend;
+        
+        // Appliquer l'événement global
+        if (event) {
+            if (event.effects.demandMult) {
+                demand *= event.effects.demandMult;
+            }
+            if (event.effects.sectorBonus && event.effects.sectorBonus[key]) {
+                demand *= event.effects.sectorBonus[key];
+            }
+            if (event.effects.priceMult) {
+                price *= event.effects.priceMult;
+            }
+        }
+        
+        // Ajustement du prix selon offre/demande ACTUELLE
+        const supply = sectorSupply[key] || 0;
+        if (supply > 0) {
+            const ratio = demand / supply;
+            if (ratio < 0.5) {
+                price *= 0.3 + ratio * 0.4;
+            } else if (ratio < 0.8) {
+                price *= 0.6 + ratio * 0.3;
+            } else if (ratio < 1.2) {
+                price *= 0.9 + ratio * 0.1;
+            } else if (ratio < 2) {
+                price *= 1 + (ratio - 1) * 0.3;
+            } else {
+                price *= 1.3 + (ratio - 2) * 0.2;
+            }
+        }
+        
+        demand = Math.max(CONFIG.minDemand, Math.min(CONFIG.maxDemand, demand));
+        
+        newSectors[key] = { 
+            demand: Math.floor(demand), 
+            supply: Math.floor(supply), 
+            price: Math.floor(Math.max(10, price)),
+            basePrice: Math.floor(basePrice), // Sauvegarder le prix de base évolutif
+            trend 
+        };
+    });
+    
+    console.log("Nouveaux secteurs:", newSectors);
+    
+    // === CALCULER LES RÉSULTATS POUR CHAQUE JOUEUR ===
+    const playerUpdates = {};
+    const newBankruptcies = []; // Pour notifier les faillites
+    
+    Object.entries(GAME.players).forEach(([id, p]) => {
+        if (p.eliminated) {
+            playerUpdates[`players/${id}/ready`] = false;
+            return;
+        }
+        
+        let capital = p.capital || CONFIG.startCapital;
+        let workers = p.workers || CONFIG.startWorkers;
+        let machines = p.machines || CONFIG.startMachines;
+        let debt = p.debt || 0;
+        let tension = p.tension || 15;
+        let sector = p.sector;
+        let indEvent = individualEvents[id] || null;
+        
+        const targetWorkers = p.targetWorkers !== undefined ? p.targetWorkers : workers;
+        const targetMachines = p.targetMachines !== undefined ? p.targetMachines : machines;
+        const salary = p.salary || 2.0;
+        const maintenance = p.maintenance !== undefined ? p.maintenance : 2;
+        
+        // 1. Changement de secteur ?
+        if (p.newSector && p.newSector !== sector) {
+            capital += machines * CONFIG.machineResale;
+            machines = 0;
+            sector = p.newSector;
+            console.log(`${p.name} change de secteur vers ${sector}`);
+        }
+        
+        // 2. Embauches / Licenciements
+        const workerDiff = targetWorkers - workers;
+        if (workerDiff > 0) {
+            capital -= workerDiff * CONFIG.workerCost;
+        } else if (workerDiff < 0) {
+            tension += Math.abs(workerDiff) * 2;
+        }
+        workers = targetWorkers;
+        
+        // 3. Achat / Vente machines
+        const machineDiff = targetMachines - machines;
+        if (machineDiff > 0) {
+            capital -= machineDiff * CONFIG.machineCost;
+        } else if (machineDiff < 0) {
+            capital += Math.abs(machineDiff) * CONFIG.machineResale;
+        }
+        machines = targetMachines;
+        
+        // 4. Événement INDIVIDUEL (avant production)
+        let productionBonus = 1;
+        let demandBonus = 0;
+        if (indEvent) {
+            const eff = indEvent.effect;
+            if (eff.capital) capital += eff.capital;
+            if (eff.tension) tension += eff.tension;
+            if (eff.workers) workers = Math.max(1, workers + eff.workers);
+            if (eff.machines) machines = Math.max(0, machines + eff.machines);
+            if (eff.productionBonus) productionBonus = eff.productionBonus;
+            if (eff.demandBonus) demandBonus = eff.demandBonus;
+        }
+        
+        // 5. Production
+        const machineCapacity = machines * CONFIG.machineCapacity;
+        const optimalWorkers = machines * CONFIG.workersPerMachine;
+        let efficiency = 1;
+        if (optimalWorkers === 0) {
+            efficiency = 0;
+        } else if (workers < optimalWorkers * 0.5) {
+            efficiency = workers / (optimalWorkers * 0.5) * 0.5;
+        } else if (workers < optimalWorkers) {
+            efficiency = 0.5 + (workers - optimalWorkers * 0.5) / (optimalWorkers * 0.5) * 0.5;
+        } else if (workers > optimalWorkers * 1.5) {
+            const excess = workers - optimalWorkers * 1.5;
+            efficiency = Math.max(0.5, 1 - excess * 0.02);
+        }
+        const workerOutput = workers * CONFIG.workerProductivity * efficiency;
+        const production = Math.floor(Math.min(machineCapacity, workerOutput) * productionBonus);
+        
+        // 6. Ventes (part de marché + bonus individuel)
+        const market = newSectors[sector];
+        const effectiveDemand = market.demand + demandBonus;
+        const myShare = market.supply > 0 ? production / market.supply : 1;
+        const sold = Math.min(production, Math.floor(effectiveDemand * myShare));
+        const revenue = sold * market.price;
+        
+        // 7. Coûts
+        const salaryCost = workers * salary * CONFIG.daysPerYear;
+        const maintCost = machines * [0, 80, 180, 350][maintenance];
+        const interest = Math.floor(debt * CONFIG.interestRate);
+        debt += interest;
+        
+        capital += revenue - salaryCost - maintCost;
+        
+        // 8. Tension
+        if (salary < 2) tension += (2 - salary) * 5;
+        else if (salary > 3) tension -= (salary - 3) * 3;
+        
+        // 9. Accident ?
+        const accidentRisk = [0.3, 0.2, 0.08, 0.02][maintenance] * machines * 0.1;
+        if (Math.random() < accidentRisk) {
+            tension += 10;
+        }
+        
+        // 10. Événement global
+        if (event) {
+            if (event.effects.tensionAll) {
+                tension += event.effects.tensionAll;
+            }
+            if (event.effects.workerLoss) {
+                const loss = Math.floor(workers * event.effects.workerLoss);
+                workers = Math.max(1, workers - loss);
+            }
+        }
+        
+        // 11. Baisse naturelle tension
+        tension = Math.max(0, Math.min(100, tension - 2));
+        
+        // 12. Faillite ou révolte ?
+        let eliminated = false;
+        let eliminationReason = null;
+        if (capital < -5000 || debt > Math.max(capital, 1) * 3) {
+            eliminated = true;
+            eliminationReason = 'bankruptcy';
+            console.log(`${p.name} fait FAILLITE !`);
+        } else if (tension >= 100) {
+            eliminated = true;
+            eliminationReason = 'revolt';
+            console.log(`${p.name} subit une RÉVOLTE !`);
+        }
+        
+        if (eliminated) {
+            newBankruptcies.push({
+                id: id,
+                name: p.name,
+                reason: eliminationReason,
+                capital: Math.floor(capital),
+                sector: sector
+            });
+        }
+        
+        // Sauvegarder les résultats
+        playerUpdates[`players/${id}/capital`] = Math.floor(capital);
+        playerUpdates[`players/${id}/workers`] = workers;
+        playerUpdates[`players/${id}/machines`] = machines;
+        playerUpdates[`players/${id}/debt`] = Math.floor(debt);
+        playerUpdates[`players/${id}/tension`] = Math.floor(tension);
+        playerUpdates[`players/${id}/sector`] = sector;
+        playerUpdates[`players/${id}/production`] = production;
+        playerUpdates[`players/${id}/eliminated`] = eliminated;
+        playerUpdates[`players/${id}/eliminationReason`] = eliminationReason;
+        playerUpdates[`players/${id}/ready`] = false;
+        playerUpdates[`players/${id}/newSector`] = null;
+        playerUpdates[`players/${id}/lastRevenue`] = revenue;
+        playerUpdates[`players/${id}/lastSold`] = sold;
+        playerUpdates[`players/${id}/individualEvent`] = indEvent ? indEvent.key : null;
+        
+        console.log(`${p.name}: capital=${Math.floor(capital)}, prod=${production}, vendu=${sold}, revenu=${revenue}`);
+    });
+    
+    // Mise à jour de l'état global
+    const newTurn = GAME.turn + 1;
+    const newYear = GAME.year + 1;
+    const ended = newTurn > CONFIG.maxTurns;
+    
+    const stillAlive = Object.entries(GAME.players).filter(([id, p]) => {
+        const newEliminated = playerUpdates[`players/${id}/eliminated`];
+        return !newEliminated;
+    }).length;
+    
+    const gameEnded = ended || stillAlive <= 1;
+    
+    if (gameRef) {
+        await gameRef.update(playerUpdates);
+        await gameRef.child('state').update({
+            turn: newTurn,
+            year: newYear,
+            sectors: newSectors,
+            event: event,
+            bankruptcies: newBankruptcies, // Pour notifier tous les joueurs
+            phase: gameEnded ? 'ended' : 'playing'
+        });
+    }
+    
+    console.log("=== FIN RÉSOLUTION ===");
+}
+
+// ============================================
+// ÉVÉNEMENTS
+// ============================================
+function showEvent(event) {
+    if (!event) return;
+    
+    document.getElementById('ev-type').textContent = event.type;
+    document.getElementById('ev-title').textContent = event.title;
+    document.getElementById('ev-desc').textContent = event.desc;
+    document.getElementById('ev-learn').innerHTML = '<strong>📚 Le saviez-vous ?</strong> ' + event.learn;
+    
+    // Effets
+    let effectsHtml = '<h4>Effets sur le marché :</h4>';
+    if (event.effects.demandMult) {
+        const pct = Math.round((event.effects.demandMult - 1) * 100);
+        effectsHtml += `<div class="event-effect-item"><span>Demande globale</span><span>${pct > 0 ? '+' : ''}${pct}%</span></div>`;
+    }
+    if (event.effects.sectorBonus) {
+        Object.entries(event.effects.sectorBonus).forEach(([k, v]) => {
+            const pct = Math.round((v - 1) * 100);
+            effectsHtml += `<div class="event-effect-item"><span>${SECTORS[k].name}</span><span>${pct > 0 ? '+' : ''}${pct}%</span></div>`;
+        });
+    }
+    if (event.effects.tensionAll) {
+        effectsHtml += `<div class="event-effect-item"><span>Tension (tous)</span><span>+${event.effects.tensionAll}%</span></div>`;
+    }
+    if (event.effects.workerLoss) {
+        const pct = Math.round(event.effects.workerLoss * 100);
+        effectsHtml += `<div class="event-effect-item"><span>Ouvriers (tous)</span><span>-${pct}%</span></div>`;
+    }
+    document.getElementById('ev-effects').innerHTML = effectsHtml;
+    
+    document.getElementById('event-overlay').classList.add('active');
+    
+    // Ajouter le concept découvert
+    ME.concepts.add(event.type.split(' ')[1] || 'Événement');
+}
+
+function closeEvent() {
+    document.getElementById('event-overlay').classList.remove('active');
+    // Vérifier s'il y a des notifications à afficher après
+    checkForNotifications();
+    updateUI();
+}
+
+// Fonction pour ajouter des concepts découverts localement
+function addConcept(concept) {
+    ME.concepts.add(concept);
+}
+
+// ============================================
+// NOTIFICATIONS ET FAILLITES
+// ============================================
+function showNotification(title, message, type = 'info', duration = 5000) {
+    const container = document.getElementById('notification-container');
+    const notif = document.createElement('div');
+    notif.className = `notification ${type}`;
+    notif.innerHTML = `
+        <div class="notification-header">
+            <span class="notification-title">${title}</span>
+            <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+        </div>
+        <div class="notification-body">${message}</div>
+    `;
+    container.appendChild(notif);
+    
+    if (duration > 0) {
+        setTimeout(() => {
+            notif.classList.add('hiding');
+            setTimeout(() => notif.remove(), 300);
+        }, duration);
+    }
+}
+
+function checkForNotifications() {
+    // Vérifier les faillites
+    if (GAME.bankruptcies && GAME.bankruptcies.length > 0) {
+        GAME.bankruptcies.forEach(b => {
+            if (b.id === ME.id) {
+                // C'est MOI qui ai fait faillite
+                showBankruptcyPopup(b);
+            } else {
+                // Un autre joueur a fait faillite
+                const reason = b.reason === 'revolt' ? 'révolte ouvrière' : 'faillite';
+                const sector = SECTORS[b.sector];
+                showNotification(
+                    `💀 ${b.name} éliminé !`,
+                    `${b.name} (${sector.icon} ${sector.name}) a été éliminé suite à une ${reason}. Une opportunité pour les survivants !`,
+                    'bankruptcy',
+                    8000
+                );
+            }
+        });
+        // Réinitialiser pour ne pas réafficher
+        GAME.bankruptcies = [];
+    }
+    
+    // Vérifier mon événement individuel
+    const myData = GAME.players[ME.id];
+    if (myData && myData.individualEvent) {
+        const indEvent = INDIVIDUAL_EVENTS[myData.individualEvent];
+        if (indEvent) {
+            showIndividualEvent(indEvent);
+        }
+    }
+}
+
+function showBankruptcyPopup(bankruptcy) {
+    const reason = bankruptcy.reason === 'revolt' ? 
+        { title: "Révolte ouvrière !", desc: "Vos ouvriers se sont soulevés et ont pris le contrôle de l'usine !", lesson: "La tension sociale non maîtrisée mène à la révolution." } :
+        { title: "Faillite !", desc: "Écrasé par les dettes, vous devez fermer votre usine.", lesson: "Le capitalisme ne pardonne pas les erreurs de gestion." };
+    
+    document.getElementById('bankruptcy-title').textContent = reason.title;
+    document.getElementById('bankruptcy-desc').textContent = reason.desc;
+    document.getElementById('bankruptcy-lesson').textContent = reason.lesson;
+    
+    document.getElementById('bankruptcy-stats').innerHTML = `
+        <div class="event-effect-item"><span>Capital final</span><span>${fmt(bankruptcy.capital)}</span></div>
+        <div class="event-effect-item"><span>Tours joués</span><span>${GAME.turn - 1}</span></div>
+        <div class="event-effect-item"><span>Secteur</span><span>${SECTORS[bankruptcy.sector].icon} ${SECTORS[bankruptcy.sector].name}</span></div>
+    `;
+    
+    document.getElementById('bankruptcy-overlay').classList.add('active');
+    ME.concepts.add(bankruptcy.reason === 'revolt' ? 'Révolte ouvrière' : 'Faillite');
+}
+
+function closeBankruptcy() {
+    document.getElementById('bankruptcy-overlay').classList.remove('active');
+    showEndScreen();
+}
+
+function showIndividualEvent(indEvent) {
+    const card = document.getElementById('individual-event-card');
+    card.className = 'event-card individual-event-' + indEvent.type;
+    
+    const header = document.getElementById('individual-event-header');
+    header.style.background = indEvent.type === 'good' ? 'var(--success)' : 'var(--danger)';
+    
+    document.getElementById('ind-ev-type').textContent = indEvent.icon + ' ' + (indEvent.type === 'good' ? 'Bonne nouvelle' : 'Mauvaise nouvelle');
+    document.getElementById('ind-ev-title').textContent = indEvent.title;
+    document.getElementById('ind-ev-desc').textContent = indEvent.desc;
+    
+    // Effets
+    let effectsHtml = '<h4>Effets sur votre entreprise :</h4>';
+    const eff = indEvent.effect;
+    if (eff.capital) {
+        const sign = eff.capital > 0 ? '+' : '';
+        effectsHtml += `<div class="event-effect-item"><span>Capital</span><span>${sign}${fmt(eff.capital)}</span></div>`;
+    }
+    if (eff.tension) {
+        const sign = eff.tension > 0 ? '+' : '';
+        effectsHtml += `<div class="event-effect-item"><span>Tension</span><span>${sign}${eff.tension}%</span></div>`;
+    }
+    if (eff.workers) {
+        const sign = eff.workers > 0 ? '+' : '';
+        effectsHtml += `<div class="event-effect-item"><span>Ouvriers</span><span>${sign}${eff.workers}</span></div>`;
+    }
+    if (eff.machines) {
+        const sign = eff.machines > 0 ? '+' : '';
+        effectsHtml += `<div class="event-effect-item"><span>Machines</span><span>${sign}${eff.machines}</span></div>`;
+    }
+    if (eff.productionBonus) {
+        const pct = Math.round((eff.productionBonus - 1) * 100);
+        effectsHtml += `<div class="event-effect-item"><span>Production ce tour</span><span>+${pct}%</span></div>`;
+    }
+    if (eff.demandBonus) {
+        effectsHtml += `<div class="event-effect-item"><span>Demande bonus</span><span>+${eff.demandBonus}</span></div>`;
+    }
+    document.getElementById('ind-ev-effects').innerHTML = effectsHtml;
+    
+    document.getElementById('ind-ev-learn').innerHTML = '<strong>📚 Le saviez-vous ?</strong> ' + indEvent.learn;
+    
+    document.getElementById('individual-event-overlay').classList.add('active');
+    ME.concepts.add(indEvent.title.split(' ')[0]);
+}
+
+function closeIndividualEvent() {
+    document.getElementById('individual-event-overlay').classList.remove('active');
+    updateUI();
+}
+
+// ============================================
+// FIN DE PARTIE
+// ============================================
+function showEndScreen() {
+    updateRanking();
+    const myRank = GAME.ranking.findIndex(p => p.id === ME.id) + 1;
+    
+    let badge, rankEmoji;
+    if (ME.eliminated) {
+        badge = 'Éliminé';
+        rankEmoji = '💀';
+    } else if (myRank === 1) {
+        badge = 'Magnat de l\'industrie !';
+        rankEmoji = '🥇';
+    } else if (myRank <= 3) {
+        badge = 'Grand industriel';
+        rankEmoji = myRank === 2 ? '🥈' : '🥉';
+    } else {
+        badge = 'Survivant';
+        rankEmoji = '🏭';
+    }
+    
+    document.getElementById('end-rank').textContent = rankEmoji;
+    document.getElementById('end-badge').textContent = badge;
+    document.getElementById('end-badge').className = 'end-badge ' + (myRank <= 3 && !ME.eliminated ? 'victory' : 'defeat');
+    
+    // Classement final
+    const rankingHtml = GAME.ranking.map((p, i) => {
+        const isMe = p.id === ME.id;
+        const s = SECTORS[p.sector];
+        return `
+            <div class="final-ranking-item ${isMe ? 'self' : ''} ${p.eliminated ? 'eliminated' : ''}">
+                <span class="final-pos">${i + 1}</span>
+                <span class="final-name">${p.name} ${s.icon}</span>
+                <span class="final-capital">${fmt(p.capital)}</span>
+            </div>
+        `;
+    }).join('');
+    document.getElementById('final-ranking').innerHTML = rankingHtml;
+    
+    // Concepts
+    const conceptsHtml = Array.from(ME.concepts).map(c => `<span class="concept-tag">${c}</span>`).join('');
+    document.getElementById('end-concepts').innerHTML = conceptsHtml || '<em>Aucun concept découvert</em>';
+    
+    showScreen('end');
+}
+
+// ============================================
+// LEXIQUE
+// ============================================
+function openLexicon() {
+    document.getElementById('lexicon-modal').classList.add('active');
+}
+
+function closeLexicon() {
+    document.getElementById('lexicon-modal').classList.remove('active');
+}
+
+// ============================================
+// AIDE CONTEXTUELLE
+// ============================================
+const HELP_CONTENT = {
+    marche: {
+        title: "📈 Comment lire les marchés ?",
+        content: `
+            <p><strong>Chaque secteur affiche :</strong></p>
+            <ul>
+                <li><strong>Prix</strong> : ce que vous gagnez par unité vendue. 🔺 = prix en hausse, 🔻 = prix en baisse.</li>
+                <li><strong>Barre bleue (Demande)</strong> : ce que les clients veulent acheter.</li>
+                <li><strong>Barre rouge (Offre)</strong> : ce que tous les joueurs produisent.</li>
+            </ul>
+            <p><strong>Interprétation :</strong></p>
+            <ul>
+                <li>📈 <strong>Forte demande</strong> : la demande dépasse l'offre → vous vendez tout, les prix montent.</li>
+                <li>⚠️ <strong>Surproduction</strong> : l'offre dépasse la demande → vous ne vendez qu'une partie, les prix s'effondrent !</li>
+            </ul>
+            <p>💡 Cliquez sur 📊 pour voir l'historique d'un secteur.</p>
+        `
+    }
+};
+
+function showHelp(topic) {
+    const help = HELP_CONTENT[topic];
+    if (help) {
+        document.getElementById('help-title').textContent = help.title;
+        document.getElementById('help-content').innerHTML = help.content;
+        document.getElementById('help-modal').classList.add('active');
+    }
+}
+
+function closeHelp() {
+    document.getElementById('help-modal').classList.remove('active');
+}
+
+// ============================================
+// GRAPHIQUES HISTORIQUES
+// ============================================
+function recordHistory() {
+    // Enregistrer l'état actuel de chaque secteur dans l'historique
+    Object.entries(GAME.sectors).forEach(([key, market]) => {
+        if (!GAME.history[key]) {
+            GAME.history[key] = [];
+        }
+        GAME.history[key].push({
+            turn: GAME.turn,
+            year: GAME.year,
+            demand: market.demand,
+            supply: market.supply,
+            price: market.price
+        });
+    });
+}
+
+function showSectorChart(sectorKey) {
+    const sector = SECTORS[sectorKey];
+    const history = GAME.history[sectorKey] || [];
+    
+    document.getElementById('chart-title').textContent = `📊 ${sector.icon} ${sector.name} - Historique`;
+    
+    const canvas = document.getElementById('sector-chart');
+    const ctx = canvas.getContext('2d');
+    
+    // Effacer le canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    if (history.length < 2) {
+        ctx.fillStyle = '#666';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Pas assez de données (attendez quelques tours)', canvas.width/2, canvas.height/2);
+        document.getElementById('chart-modal').classList.add('active');
+        return;
+    }
+    
+    // Calculer les échelles
+    const padding = 40;
+    const chartWidth = canvas.width - padding * 2;
+    const chartHeight = canvas.height - padding * 2;
+    
+    const maxDemand = Math.max(...history.map(h => h.demand), 1);
+    const maxSupply = Math.max(...history.map(h => h.supply), 1);
+    const maxPrice = Math.max(...history.map(h => h.price), 1);
+    const maxValue = Math.max(maxDemand, maxSupply);
+    
+    const xStep = chartWidth / (history.length - 1);
+    
+    // Dessiner la grille
+    ctx.strokeStyle = '#ddd';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padding + (chartHeight / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(canvas.width - padding, y);
+        ctx.stroke();
+    }
+    
+    // Dessiner les axes
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padding, padding);
+    ctx.lineTo(padding, canvas.height - padding);
+    ctx.lineTo(canvas.width - padding, canvas.height - padding);
+    ctx.stroke();
+    
+    // Fonction pour dessiner une ligne
+    function drawLine(data, getValue, color, scale) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        data.forEach((point, i) => {
+            const x = padding + i * xStep;
+            const y = canvas.height - padding - (getValue(point) / scale * chartHeight);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+    }
+    
+    // Dessiner demande (bleu)
+    drawLine(history, h => h.demand, '#3498db', maxValue);
+    
+    // Dessiner offre (rouge)
+    drawLine(history, h => h.supply, '#e74c3c', maxValue);
+    
+    // Dessiner prix (vert) - échelle différente
+    drawLine(history, h => h.price, '#2ecc71', maxPrice);
+    
+    // Labels
+    ctx.fillStyle = '#666';
+    ctx.font = '11px Arial';
+    ctx.textAlign = 'center';
+    
+    // Tours sur l'axe X
+    history.forEach((point, i) => {
+        if (i % Math.ceil(history.length / 6) === 0 || i === history.length - 1) {
+            const x = padding + i * xStep;
+            ctx.fillText(point.year, x, canvas.height - padding + 15);
+        }
+    });
+    
+    // Valeurs sur l'axe Y
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+        const value = Math.round(maxValue * (4 - i) / 4);
+        const y = padding + (chartHeight / 4) * i;
+        ctx.fillText(value, padding - 5, y + 4);
+    }
+    
+    document.getElementById('chart-modal').classList.add('active');
+}
+
+function closeChart() {
+    document.getElementById('chart-modal').classList.remove('active');
+}
+
+// ============================================
+// INITIALISATION
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Nom aléatoire
+    const noms = ['Dupont', 'Martin', 'Bernard', 'Duval', 'Moreau', 'Laurent', 'Simon', 'Michel'];
+    const prenoms = ['Baron', 'Comte', 'Vicomte', 'Marquis'];
+    document.getElementById('player-name').value = prenoms[Math.floor(Math.random()*prenoms.length)] + ' ' + noms[Math.floor(Math.random()*noms.length)];
+});
+</script>
+</body>
+</html>
