@@ -487,7 +487,7 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;hei
 <div class="factory-stat-label">Capital</div>
 </div>
 <div class="factory-stat">
-<div class="factory-stat-value" id="f-workers">12</div>
+<div class="factory-stat-value" id="f-workers">10</div>
 <div class="factory-stat-label">Ouvriers</div>
 </div>
 <div class="factory-stat">
@@ -525,7 +525,7 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;hei
 <div class="decision-controls">
 <button class="ctrl-btn" onclick="adjustWorkers(-5)">−5</button>
 <button class="ctrl-btn" onclick="adjustWorkers(-1)">−</button>
-<span class="ctrl-value" id="d-workers">12</span>
+<span class="ctrl-value" id="d-workers">10</span>
 <button class="ctrl-btn" onclick="adjustWorkers(1)">+</button>
 <button class="ctrl-btn" onclick="adjustWorkers(5)">+5</button>
 </div>
@@ -714,13 +714,13 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;hei
 <div class="lexicon-entry"><h4>📈 Offre et Demande</h4><p><strong>Offre</strong> : quantité de produits fabriqués par tous les industriels d'un secteur.<br><strong>Demande</strong> : quantité que les clients veulent acheter.<br>Si l'offre dépasse la demande = surproduction, les prix chutent. Si la demande dépasse l'offre = pénurie, les prix montent.</p></div>
 <div class="lexicon-entry"><h4>💹 Prix du marché</h4><p>Le prix auquel vous vendez vos produits. Il varie selon l'offre et la demande.</p></div>
 <div class="lexicon-entry"><h4>🏭 Production</h4><p>La quantité de biens que votre usine fabrique. Dépend du nombre de machines et d'ouvriers, et de leur efficacité.</p></div>
-<div class="lexicon-entry"><h4>⚙️ Machines</h4><p>Équipement industriel. Chaque machine peut produire jusqu'à 50 unités et nécessite 6 ouvriers pour fonctionner de façon optimale. Cher à l'achat mais rentabilisé en 1-2 tours.</p></div>
+<div class="lexicon-entry"><h4>⚙️ Machines</h4><p>Équipement industriel. Chaque machine a une capacité de production limitée et nécessite un certain nombre d'ouvriers pour fonctionner. Trop peu d'ouvriers = machine sous-exploitée. Trop d'ouvriers = bras inutiles. À vous de trouver le bon équilibre !</p></div>
 <div class="lexicon-entry"><h4>👷 Ouvriers</h4><p>La main-d'œuvre de votre usine. Trop peu = production réduite. Trop = surcoût sans gain. Les licenciements créent de la tension.</p></div>
 <div class="lexicon-entry"><h4>💵 Salaire</h4><p>Ce que vous payez vos ouvriers par jour. Un salaire bas (&lt; 2₣) augmente la tension. Un salaire élevé (&gt; 3₣) la diminue mais coûte cher.</p></div>
 <div class="lexicon-entry"><h4>🔧 Entretien</h4><p>L'argent investi dans la maintenance des machines. Sans entretien = risque d'accidents et de tension sociale.</p></div>
 <div class="lexicon-entry"><h4>😤 Tension sociale</h4><p>Le mécontentement de vos ouvriers. Si elle atteint 100%, c'est la révolte et vous êtes éliminé !</p></div>
 <div class="lexicon-entry"><h4>💳 Dette</h4><p>L'argent emprunté. Génère des intérêts de 10% par an. Une dette trop élevée (&gt; 3× le capital) = faillite.</p></div>
-<div class="lexicon-entry"><h4>📊 Productivité</h4><p>Le rapport entre vos ressources (machines + ouvriers) et votre production. Investir dans des machines coûte cher au départ mais chaque unité produite revient moins cher à long terme qu'en payant plus d'ouvriers.</p></div>
+<div class="lexicon-entry"><h4>📊 Productivité</h4><p>Le rapport entre vos ressources (machines + ouvriers) et votre production. Chaque machine a besoin d'un nombre suffisant d'ouvriers pour tourner à plein régime. Investir dans des machines coûte cher au départ mais peut s'avérer rentable à long terme — à condition d'avoir assez de bras pour les faire tourner.</p></div>
 <div class="lexicon-entry"><h4>🔄 Reconversion</h4><p>Changer de secteur industriel. Vos machines sont revendues à 50% de leur valeur. Utile pour fuir un secteur en crise.</p></div>
 <div class="lexicon-entry"><h4>📉 Krach / Crise</h4><p>Effondrement soudain de la demande. Les entreprises trop endettées font faillite en chaîne.</p></div>
 <div class="lexicon-entry"><h4>📈 Boom économique</h4><p>Période de forte croissance où la demande explose. Moment idéal pour investir... mais attention au retournement !</p></div>
@@ -850,7 +850,7 @@ const CONFIG = {
     maxTurns: 20,
     startYear: 1840,
     startCapital: 20000,
-    startWorkers: 12,
+    startWorkers: 10,
     startMachines: 2,
     workerCost: 40,
     machineCost: 2500,
@@ -1333,7 +1333,7 @@ function updateLobbyUI() {
             const count = Object.values(GAME.players).filter(p => p.sector === key).length;
             return `<div class="sector-option ${ME.sector === key ? 'selected' : ''}" onclick="selectSector('${key}')">
                 <span class="sector-icon">${s.icon}</span>
-                <div class="sector-info"><div class="sector-name">${s.name}</div><div class="sector-desc">Prix base: ${s.basePrice}₣ | Capacité/machine: ${CONFIG.machineCapacity}</div></div>
+                <div class="sector-info"><div class="sector-name">${s.name}</div><div class="sector-desc">Prix de base: ${s.basePrice}₣</div></div>
                 <div class="sector-players">${count} joueur(s)</div>
             </div>`;
         }).join('');
@@ -1400,10 +1400,12 @@ async function startGame() {
     if (!ME.isHost) return;
     const numPlayers = Object.keys(GAME.players).length;
     
-    const avgProductionPerPlayer = CONFIG.startWorkers * CONFIG.workerProductivity * 0.9;
-    const baseDemandPerSector = 150;
-    const playerDemandContribution = (numPlayers * avgProductionPerPlayer * 1.2) / 5;
-    const demandPerSector = Math.floor(baseDemandPerSector + playerDemandContribution);
+    const avgProductionPerPlayer = CONFIG.startWorkers * CONFIG.workerProductivity * 0.8;
+    const expectedSupplyPerSector = (numPlayers / 5) * avgProductionPerPlayer;
+    // Demande serrée : légèrement au-dessus de l'offre attendue pour petits groupes,
+    // au niveau ou en dessous pour grands groupes → vraie compétition
+    const tightness = numPlayers <= 8 ? 1.25 : numPlayers <= 15 ? 1.1 : 0.95;
+    const demandPerSector = Math.max(50, Math.floor(40 + expectedSupplyPerSector * tightness));
     
     const sectors = {};
     Object.entries(SECTORS).forEach(([key, s]) => {
@@ -1515,69 +1517,79 @@ function updateProductivityPreview() {
     const optimal = machines * CONFIG.workersPerMachine;
     const prod = calculateProduction();
     
-    // Efficacité
+    // Efficacité interne (non montrée en chiffre exact)
     let effPct = 100;
     if (optimal === 0) effPct = 0;
     else if (workers < optimal * 0.5) effPct = Math.round((workers / (optimal * 0.5)) * 50);
     else if (workers < optimal) effPct = Math.round(50 + ((workers - optimal * 0.5) / (optimal * 0.5)) * 50);
     else if (workers > optimal * 1.5) effPct = Math.max(50, Math.round((1 - (workers - optimal * 1.5) * 0.02) * 100));
     
-    let effClass = effPct >= 80 ? 'ok' : effPct >= 50 ? 'warn' : 'bad';
-    let effColor = effPct >= 80 ? 'var(--success)' : effPct >= 50 ? 'var(--warning)' : 'var(--danger)';
+    // Indicateur vague
+    let effLabel, effClass, effColor, effHint;
+    if (machines === 0) { effLabel = '🚫 Aucune machine'; effClass = 'bad'; effColor = 'var(--danger)'; effHint = 'Impossible de produire sans machines.'; }
+    else if (effPct >= 90) { effLabel = '✅ Ateliers en plein régime'; effClass = 'ok'; effColor = 'var(--success)'; effHint = 'Vos ouvriers et machines travaillent en harmonie.'; }
+    else if (effPct >= 70) { effLabel = '⚙️ Ateliers productifs'; effClass = 'ok'; effColor = 'var(--success)'; effHint = 'Il y a peut-être moyen d\'optimiser un peu...'; }
+    else if (effPct >= 50) { effLabel = '⚠️ Rendement moyen'; effClass = 'warn'; effColor = 'var(--warning)'; effHint = workers < optimal ? 'Certaines machines semblent sous-exploitées.' : 'Des ouvriers semblent désœuvrés.'; }
+    else { effLabel = '🔻 Rendement faible'; effClass = 'bad'; effColor = 'var(--danger)'; effHint = workers < optimal ? 'Vos machines manquent cruellement de bras !' : 'Beaucoup trop d\'ouvriers pour si peu de machines.'; }
     
-    // Analyse +1 machine
-    const newMachCap = (machines + 1) * CONFIG.machineCapacity;
-    const newMachOptimal = (machines + 1) * CONFIG.workersPerMachine;
-    const newMachWorkerOutput = workers * CONFIG.workerProductivity; // même nombre d'ouvriers
-    let newMachProd = Math.floor(Math.min(newMachCap, newMachWorkerOutput));
-    // Recalcul avec efficacité pour +1 machine et mêmes ouvriers
+    // Analyse +1 machine (sans révéler la formule)
     const opt2 = (machines + 1) * CONFIG.workersPerMachine;
     let eff2 = 1;
     if (workers < opt2 * 0.5) eff2 = workers / (opt2 * 0.5) * 0.5;
     else if (workers < opt2) eff2 = 0.5 + (workers - opt2 * 0.5) / (opt2 * 0.5) * 0.5;
-    newMachProd = Math.floor(Math.min(newMachCap, workers * CONFIG.workerProductivity * eff2));
+    const newMachCap = (machines + 1) * CONFIG.machineCapacity;
+    const newMachProd = Math.floor(Math.min(newMachCap, workers * CONFIG.workerProductivity * eff2));
     const machProdGain = newMachProd - prod;
     
-    // Analyse +6 ouvriers (1 équipe complète)
-    const extraW = CONFIG.workersPerMachine;
+    // Analyse +3 ouvriers
+    const extraW = 3;
     const newWorkers = workers + extraW;
     const opt3 = machines * CONFIG.workersPerMachine;
     let eff3 = 1;
-    if (newWorkers < opt3 * 0.5) eff3 = newWorkers / (opt3 * 0.5) * 0.5;
+    if (opt3 === 0) eff3 = 0;
+    else if (newWorkers < opt3 * 0.5) eff3 = newWorkers / (opt3 * 0.5) * 0.5;
     else if (newWorkers < opt3) eff3 = 0.5 + (newWorkers - opt3 * 0.5) / (opt3 * 0.5) * 0.5;
     else if (newWorkers > opt3 * 1.5) eff3 = Math.max(0.5, 1 - (newWorkers - opt3 * 1.5) * 0.02);
     const newWProd = Math.floor(Math.min(capacity, newWorkers * CONFIG.workerProductivity * eff3));
     const workerProdGain = newWProd - prod;
     
-    // Coûts annuels comparés
-    const machAnnualCost = [0, 80, 180, 350][ME.maintenance]; // entretien/machine
-    const workerAnnualCost = ME.salary * CONFIG.daysPerYear; // salaire/ouvrier/an
+    // Coûts
+    const machAnnualCost = [0, 80, 180, 350][ME.maintenance];
+    const workerAnnualCost = ME.salary * CONFIG.daysPerYear;
+    
+    // Indication vague sur le surplus/manque sans révéler le chiffre exact
+    let workerHint = '';
+    if (machines > 0) {
+        if (workerProdGain > 5) workerHint = '<div class="prod-cost" style="color:var(--success)">↗ Gain probable</div>';
+        else if (workerProdGain > 0) workerHint = '<div class="prod-cost" style="color:var(--success)">↗ Léger gain</div>';
+        else workerHint = '<div class="prod-cost" style="color:var(--smoke)">→ Gain incertain</div>';
+    }
+    let machHint = '';
+    if (machProdGain > 5) machHint = '<div class="prod-cost" style="color:var(--success)">↗ Gain probable</div>';
+    else if (machProdGain > 0) machHint = '<div class="prod-cost" style="color:var(--success)">↗ Léger gain</div>';
+    else machHint = '<div class="prod-cost" style="color:var(--warning)">⚠️ Manque d\'ouvriers pour en profiter</div>';
     
     let html = `
-        <h4>📊 Productivité de votre usine</h4>
-        <div class="prod-row"><span>Capacité machines</span><span><strong>${capacity}</strong> unités (${machines} × ${CONFIG.machineCapacity})</span></div>
-        <div class="prod-row"><span>Ouvriers optimaux</span><span><strong>${optimal}</strong> (${machines} × ${CONFIG.workersPerMachine})</span></div>
-        <div class="prod-row"><span>Vos ouvriers</span><span><strong>${workers}</strong> ${workers < optimal ? '⚠️ manque ' + (optimal - workers) : workers > optimal * 1.3 ? '⚠️ surplus' : '✓'}</span></div>
-        <div class="prod-row"><span>Efficacité</span><span class="${effClass}"><strong>${effPct}%</strong></span></div>
+        <h4>📊 Rendement de votre usine</h4>
+        <div class="prod-row highlight"><span>Production actuelle</span><span>${prod} unités</span></div>
+        <div class="prod-row"><span>${effLabel}</span><span class="${effClass}" style="font-size:0.8rem">${effHint}</span></div>
         <div class="efficiency-bar"><div class="efficiency-fill" style="width:${effPct}%;background:${effColor}"></div></div>
-        <div class="prod-row highlight"><span>Production</span><span>${prod} unités</span></div>
         <div class="prod-divider"></div>
-        <div style="font-size:0.8rem;color:var(--smoke);margin-bottom:0.3rem">💡 Comparer un investissement :</div>
+        <div style="font-size:0.8rem;color:var(--smoke);margin-bottom:0.3rem">💡 Et si j'investissais ?</div>
         <div class="prod-comparison">
             <div class="prod-option">
                 <h5>+1 Machine</h5>
                 <div class="prod-gain ${machProdGain > 0 ? 'positive' : 'zero'}">${machProdGain > 0 ? '+' + machProdGain : '±0'} unités</div>
-                <div class="prod-cost">Coût : ${fmt(CONFIG.machineCost)}</div>
+                <div class="prod-cost">Achat : ${fmt(CONFIG.machineCost)}</div>
                 <div class="prod-cost">Entretien : ${fmt(machAnnualCost)}/an</div>
-                ${machProdGain > 0 ? `<div class="prod-cost" style="color:var(--success)">Besoin de +${newMachOptimal - optimal} ouvr.</div>` : 
-                `<div class="prod-cost" style="color:var(--warning)">⚠️ Ajoutez des ouvriers d'abord</div>`}
+                ${machHint}
             </div>
             <div class="prod-option">
                 <h5>+${extraW} Ouvriers</h5>
                 <div class="prod-gain ${workerProdGain > 0 ? 'positive' : 'zero'}">${workerProdGain > 0 ? '+' + workerProdGain : '±0'} unités</div>
                 <div class="prod-cost">Embauche : ${fmt(extraW * CONFIG.workerCost)}</div>
-                <div class="prod-cost">Salaires : ${fmt(extraW * workerAnnualCost)}/an</div>
-                ${workerProdGain <= 0 ? `<div class="prod-cost" style="color:var(--warning)">⚠️ Limité par les machines</div>` : ''}
+                <div class="prod-cost">Salaires : +${fmt(extraW * workerAnnualCost)}/an</div>
+                ${workerHint}
             </div>
         </div>
     `;
@@ -1990,8 +2002,13 @@ async function resolveTurn() {
         basePrice = Math.max(s.basePrice * 0.4, Math.min(s.basePrice * 2, basePrice));
         let price = basePrice;
         
-        const trend = 0.92 + Math.random() * 0.16;
+        const trend = 0.88 + Math.random() * 0.24; // 0.88 à 1.12 — plus volatile
         demand *= trend;
+        
+        // La demande se resserre naturellement au fil du jeu (industrialisation → surproduction)
+        const gamePct = (GAME.turn || 1) / CONFIG.maxTurns;
+        const lateTightening = 1 - gamePct * 0.15; // jusqu'à -15% en fin de partie
+        demand *= lateTightening;
         
         if (event) {
             if (event.effects.demandMult) demand *= event.effects.demandMult;
@@ -2312,14 +2329,15 @@ const HELP_CONTENT = {
     },
     machines: {
         title: "⚙️ Machines vs Ouvriers",
-        content: `<p><strong>Les machines sont un investissement à long terme :</strong></p>
-            <ul><li>1 machine coûte <strong>2 500₣</strong> à l'achat mais peut produire <strong>${CONFIG.machineCapacity} unités</strong>/tour.</li>
-            <li>Elle nécessite <strong>${CONFIG.workersPerMachine} ouvriers</strong> pour tourner de façon optimale.</li>
-            <li>L'entretien normal coûte <strong>180₣/an</strong> par machine.</li></ul>
-            <p><strong>Comparaison :</strong></p>
-            <ul><li>💰 <strong>Machine</strong> : 2 500₣ au départ, ~180₣/an d'entretien → rentabilisée en 1-2 tours.</li>
-            <li>👷 <strong>Ouvriers seuls</strong> : moins cher au départ (40₣/emb.) mais les salaires (~300₣/an chacun) s'accumulent.</li></ul>
-            <p>💡 Regardez l'aperçu de productivité pour voir l'impact réel de vos choix !</p>`
+        content: `<p><strong>Les machines sont un investissement :</strong></p>
+            <ul><li>Chaque machine coûte <strong>2 500₣</strong> à l'achat.</li>
+            <li>Elle a une capacité de production importante, mais nécessite <strong>suffisamment d'ouvriers</strong> pour tourner à plein régime.</li>
+            <li>L'entretien coûte entre 80₣ et 350₣/an selon le niveau choisi.</li></ul>
+            <p><strong>Le défi :</strong></p>
+            <ul><li>Trop de machines sans assez d'ouvriers = gaspillage.</li>
+            <li>Trop d'ouvriers sans machines = bras inutiles.</li>
+            <li>Les salaires s'accumulent tour après tour, l'achat d'une machine est unique.</li></ul>
+            <p>💡 Observez l'indicateur de rendement et testez différentes combinaisons !</p>`
     }
 };
 
